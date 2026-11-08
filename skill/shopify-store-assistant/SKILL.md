@@ -1,17 +1,17 @@
 ---
 name: shopify-store-assistant
-description: Shop a Shopify store with the user from its live catalog, pages, and policies, recommend products, hand over a checkout-ready cart link, and audit the catalog for the merchant, using the read-only mcp-store-tools MCP server. Use when the user asks what a store sells, whether something is in stock or in their size, what it costs, what goes with it, how products compare, what the cheapest, newest or best-selling items are, whether the store ships to their country or takes their payment method, what the size guide, FAQ, refund, shipping or privacy policy says, wants a link to buy, or asks for a catalog audit or listing-quality report.
+description: Shop a Shopify store with the user from its live catalog, pages, and policies, recommend products, hand over a checkout-ready cart link, and audit the catalog for the merchant, using the read-only mcp-store-tools MCP server. Use when the user asks what a store sells, whether something is in stock or in their size, what it costs, what goes with it, what is on sale, whether it comes in their size or colour, what it costs in their country, how products compare, what the cheapest, newest or best-selling items are, whether the store ships to their country or takes their payment method, what the size guide, FAQ, refund, shipping or privacy policy says, wants a link to buy, or asks for a catalog audit or listing-quality report.
 ---
 
 # Shopify store assistant
 
-You answer from one Shopify store's live data through eleven read-only tools served by
+You answer from one Shopify store's live data through thirteen read-only tools served by
 `mcp-store-tools`. If those tools are not available in this session, stop and walk the user
 through [reference/setup.md](reference/setup.md) instead of answering from memory.
 
 | Tool | Use it for |
 | --- | --- |
-| `search_products(query, limit, min_price, max_price, in_stock_only)` | Finding products by words, a budget, or in stock only |
+| `search_products(query, limit, min_price, max_price, in_stock_only, options, country)` | Finding products by words, a budget, stock, or a size/colour |
 | `get_product(handle)` | Variants: each one's options (Size, Color), price, and stock |
 | `list_collections()` | The store's categories and their handles |
 | `browse_products(collection, sort, limit, cursor)` | Cheapest, newest, best sellers, a whole category, or every product |
@@ -22,6 +22,11 @@ through [reference/setup.md](reference/setup.md) instead of answering from memor
 | `search_pages(query, limit)` | Size guides, FAQs, about and contact pages |
 | `build_cart_link(items)` | A checkout-ready cart link for chosen variants |
 | `audit_catalog(max_products, examples_per_check)` | The merchant's whole-catalog listing audit in one call |
+| `find_deals(collection, min_percent_off, limit, max_products, country)` | What's on sale, biggest discount first |
+| `compare_products(handles, country)` | 2 to 5 products side by side, with what differs |
+
+Every product tool takes an optional `country` (ISO code such as `GB`): use it when the shopper
+says where they are, so prices, currency, and availability match their market.
 
 ## Workflows
 
@@ -30,6 +35,15 @@ through [reference/setup.md](reference/setup.md) instead of answering from memor
    singular term ("running shoes" to "shoe").
 2. For the one or two best matches, `get_product` to read the variants. Match the user's size or
    colour against each variant's `options`; availability and price differ per variant.
+
+**"Do you have it in black, size M?"**: `search_products` with
+`options: {"Color": "Black", "Size": "M"}` (and `in_stock_only: true` if they want to buy now).
+Each result lists its `matching_variants`; answer from those, not from the product's other
+variants.
+
+**"What's on sale?" / "Any deals on jackets?"**: `find_deals` (with the jackets collection's
+handle from `list_collections`). Quote `price`, `compare_at_price`, and "up to `percent_off`%
+off". Any product with `on_sale: true` elsewhere can be described the same way.
 
 **"Something under $50" / "only what's in stock"**: `search_products` with `max_price`
 (and `min_price`) in the store's currency, and `in_stock_only: true` when they only want what
@@ -57,8 +71,9 @@ policy or contact page.
 **"What size should I get?" / "How do I contact you?"**: `search_pages` (for example "size
 guide"); quote the page and link it.
 
-**Comparing products**: `get_product` for each, then a table: name, price, in-stock variants,
-key differences taken from the descriptions. Link each product.
+**Comparing products**: find the handles with `search_products`, then `compare_products`.
+Build a table from its rows (price, sale price, in-stock variants, options) and call out the
+fields in `differs_in`. Link each product.
 
 **Policy questions** ("Can I return this?", "How long is shipping?")
 1. `list_policies`, then `get_policy` for the relevant kind.
