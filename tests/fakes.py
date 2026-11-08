@@ -82,7 +82,12 @@ def page(has_next: bool) -> dict[str, Any]:
 def respond(payload: dict[str, Any]) -> dict[str, Any]:
     query: str = payload["query"]
     if "query Search" in query:
+        # "unindexed" mimics a store whose search index is empty for the query.
+        if payload["variables"]["query"] == "unindexed":
+            return {"data": {"search": {"nodes": []}}}
         return {"data": {"search": {"nodes": [PRODUCT, SOLD_OUT]}}}
+    if "query ProductsByKeyword" in query:
+        return {"data": {"products": {"nodes": [PRODUCT, SOLD_OUT]}}}
     if "query Product" in query:
         if payload["variables"]["handle"] != PRODUCT["handle"]:
             return {"data": {"product": None}}

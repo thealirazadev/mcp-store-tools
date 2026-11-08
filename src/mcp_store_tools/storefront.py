@@ -53,6 +53,14 @@ query Search($query: String!, $first: Int!, $filters: [ProductFilter!], {_CTX_VA
 }}
 """
 
+# Fallback when the storefront search index returns nothing (seen on a new development store,
+# where `search` returned 0 results while these products were published and listed).
+KEYWORD_QUERY = f"""
+query ProductsByKeyword($query: String!, $first: Int!, {_CTX_VARS}) {_CTX} {{
+  products(first: $first, query: $query, sortKey: RELEVANCE) {{ nodes {{ {_PRODUCT_FIELDS} }} }}
+}}
+"""
+
 PRODUCT_QUERY = f"""
 query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
   product(handle: $handle) {{
@@ -254,7 +262,10 @@ class Storefront:
         if in_stock_only:
             filters.append({"available": True})
         variables = {"query": query, "first": limit, "filters": filters or None}
-        nodes = self.query(SEARCH_QUERY, variables)["search"]["nodes"]
+        nodes = [n for n in self.query(SEARCH_QUERY, variables)["search"]["nodes"] if n]
+        if not nodes:
+            fallback = {"query": query, "first": limit}
+            nodes = self.query(KEYWORD_QUERY, fallback)["products"]["nodes"]
 
         # Apply the filters again here: a store whose search ignores a filter must not make
         # the model quote a product outside the range the shopper asked for.
@@ -267,7 +278,7 @@ class Storefront:
                 and (node["availableForSale"] or not in_stock_only)
             )
 
-        return [_product(node) for node in nodes if node and wanted(node)]
+        return [_product(node) for node in nodes if wanted(node)]
 
     def get_product(self, handle: str) -> dict[str, Any] | None:
         node = self.query(PRODUCT_QUERY, {"handle": handle}).get("product")

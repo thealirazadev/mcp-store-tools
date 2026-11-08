@@ -218,3 +218,17 @@ def test_client_and_graphql_errors_are_reported(response: httpx.Response, messag
     store = Storefront(CONFIG, transport=httpx.MockTransport(lambda r: response))
     with pytest.raises(StorefrontError, match=message):
         store.query("{ shop { name } }")
+
+
+def test_search_falls_back_to_the_keyword_query_when_the_index_is_empty() -> None:
+    calls: list[dict[str, Any]] = []
+    store = Storefront(CONFIG, transport=fakes.transport(calls=calls))
+
+    found = store.search_products("unindexed", 5, max_price=Decimal("100"))
+
+    assert [c["query"].split("(")[0].strip() for c in calls] == [
+        "query Search",
+        "query ProductsByKeyword",
+    ]
+    assert calls[1]["variables"]["query"] == "unindexed"
+    assert [p["handle"] for p in found] == ["trail-runner"]  # price filter still enforced
