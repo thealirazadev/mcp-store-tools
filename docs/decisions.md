@@ -54,3 +54,29 @@ a schedule, not on every push, so an outage of a third-party demo store never bl
 The `skill/shopify-store-assistant` folder teaches an agent when to call which tool, how to
 answer (cite URLs, never invent prices), and how to run a catalog audit. It lives in this repo,
 and a test checks it names exactly the tools the server serves, so the two cannot drift apart.
+
+## 8. Up to 100 variants, flagged beyond that
+
+Shopify allows up to 2,048 variants per product. Returning them all would flood the model's
+context for one product, so `get_product` returns the first 100 and sets `more_variants` when
+there are more. The skill tells the model not to call an unseen variant "missing".
+
+## 9. Cache what rarely changes, never stock
+
+Policies and collections are cached in memory for five minutes per process: `get_policy` and
+`list_policies` share one fetch. Products, prices, and availability are never cached, because an
+answer about stock must be true now.
+
+## 10. Local markets through `@inContext`
+
+`SHOPIFY_COUNTRY` and `SHOPIFY_LANGUAGE` are sent with every query through Storefront's
+`@inContext` directive, so stores using Shopify Markets return that market's currency, prices,
+and translations. They are validated at startup, because Shopify rejects an invalid enum value
+with a GraphQL error on every call.
+
+## 11. Streamable HTTP is opt-in and unauthenticated
+
+stdio stays the default: local clients start the server themselves and nothing listens on a
+port. `--transport http` exists for hosting one store for several agents. It binds to localhost
+unless told otherwise and adds no authentication of its own: the data is public storefront data,
+and TLS plus access control belong in the reverse proxy in front of it (SECURITY.md).
