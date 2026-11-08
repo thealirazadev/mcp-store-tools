@@ -27,3 +27,19 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mcp-store-tools .
+      - name: Container answers an MCP initialize over HTTP
+        run: |
+          docker run -d --name mst -p 8000:8000 -e SHOPIFY_STORE_DOMAIN=ci.myshopify.com \
+            -e SHOPIFY_STOREFRONT_TOKEN=unused mcp-store-tools
+          for i in $(seq 30); do curl -s localhost:8000/mcp -o /dev/null && break; sleep 1; done
+          curl -sf -X POST localhost:8000/mcp -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | grep -q '"serverInfo"'
+          docker logs mst
