@@ -181,3 +181,35 @@ def test_policies_and_collections_are_cached_but_products_are_not() -> None:
     now[0] = 301.0
     store.policies()
     assert len(calls) == 5
+
+
+def test_network_errors_are_retried_then_reported() -> None:
+    attempts = []
+
+    def flaky(request: httpx.Request) -> httpx.Response:
+        attempts.append(1)
+        if len(attempts) < 2:
+            raise httpx.ConnectError("connection refused", request=request)
+        return httpx.Response(200, json={"data": {"shop": {}}})
+
+    store = Storefront(CONFIG, transport=httpx.MockTransport(flaky), backoff=0)
+    assert store.query("{ shop { name } }") == {"shop": {}}
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    with pytest.raises(StorefrontError, match="did not respond"):
+        Storefront(CONFIG, transport=httpx.MockTransport(down), backoff=0).query("{ x }")
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        (httpx.Response(404), r"error \(404\)"),
+        (httpx.Response(200, json={"errors": [{"message": "bad field"}]}), "bad field"),
+    ],
+)
+def test_client_and_graphql_errors_are_reported(response: httpx.Response, message: str) -> None:
+    store = Storefront(CONFIG, transport=httpx.MockTransport(lambda r: response))
+    with pytest.raises(StorefrontError, match=message):
+        store.query("{ shop { name } }")

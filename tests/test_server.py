@@ -175,10 +175,11 @@ async def test_prompts_are_listed_and_name_only_real_tools() -> None:
         tools = {t.name for t in (await c.list_tools()).tools}
         audit = await c.get_prompt("audit_catalog")
         compare = await c.get_prompt("compare_products", {"products": "Trail Runner, Summit Boot"})
+        policy = await c.get_prompt("policy_question", {"question": "Can I return boots?"})
 
     assert prompts == {"audit_catalog", "compare_products", "policy_question"}
     texts = []
-    for result in (audit, compare):
+    for result in (audit, compare, policy):
         body = result.messages[0].content
         assert isinstance(body, TextContent)
         texts.append(body.text)
