@@ -49,6 +49,19 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
         policy = await call("get_policy", kind="refund")
         assert "<" not in policy["text"]
 
+        info = await call("get_store_info")
+        assert info["name"] and info["currency"] and info["url"].startswith("https://")
+        assert (await call("get_recommendations", handle=product["handle"]))["result"]
+        assert (await call("search_pages", query="contact"))["result"]
+        variant = next(v for v in product["variants"] if v["available"])
+        link = await call(
+            "build_cart_link",
+            items=[{"handle": product["handle"], "variant_id": variant["id"], "quantity": 2}],
+        )
+        assert link["url"].endswith(f"/cart/{variant['id']}:2") and link["subtotal"]
+        report = await call("audit_catalog", max_products=100, examples_per_check=1)
+        assert report["products_checked"] > 0 and set(report["checks"]) >= {"sold_out"}
+
 
 async def test_demo_store_over_streamable_http_with_a_bearer_token() -> None:
     import asyncio
@@ -136,6 +149,16 @@ async def test_real_store_with_a_storefront_token() -> None:
         assert product["variants"] and "options" in product["variants"][0]
         await call("list_collections")
         await call("list_policies")
+        await call("get_store_info")
+        await call("get_recommendations", handle=first["handle"])
+        await call("search_pages", query="contact")
+        report = await call("audit_catalog", max_products=200)
+        assert report["products_checked"] > 0
+        in_stock = next((v for v in product["variants"] if v["available"]), None)
+        if in_stock:
+            item = {"handle": first["handle"], "variant_id": in_stock["id"]}
+            link = await call("build_cart_link", items=[item])
+            assert f"/cart/{in_stock['id']}:1" in link["url"]
 
 
 @real_store
