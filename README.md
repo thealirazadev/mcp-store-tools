@@ -77,12 +77,37 @@ claude mcp add my-store --env SHOPIFY_STORE_DOMAIN=your-store.myshopify.com \
   --env SHOPIFY_STOREFRONT_TOKEN=your-storefront-token -- mcp-store-tools
 ```
 
-`SHOPIFY_API_VERSION` is optional (default `2026-10`).
+### Configuration
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `SHOPIFY_STORE_DOMAIN` | yes | `your-store.myshopify.com` (a pasted URL is fine) |
+| `SHOPIFY_STOREFRONT_TOKEN` | yes | Storefront API access token |
+| `SHOPIFY_COUNTRY` | no | ISO country code (`GB`): prices and currency for that market |
+| `SHOPIFY_LANGUAGE` | no | Language code (`FR`, `PT_BR`): translated titles and descriptions |
+| `SHOPIFY_API_VERSION` | no | Storefront API version, default `2026-10` |
+
+Policies and collections are cached for five minutes; products, prices, and stock are always
+fetched live. Shopify throttling is retried with backoff, honouring `Retry-After`.
 
 ### Cursor, VS Code, Windsurf, Codex, Gemini CLI
 
 Config snippets for each are in
 [skill/shopify-store-assistant/reference/setup.md](skill/shopify-store-assistant/reference/setup.md).
+
+### Hosting over HTTP
+
+`--transport http` serves MCP Streamable HTTP at `/mcp` (default `127.0.0.1:8000`; `--host`,
+`--port`, or `PORT`). The Docker image runs in this mode:
+
+```bash
+docker build -t mcp-store-tools .
+docker run -p 8000:8000 -e SHOPIFY_STORE_DOMAIN=your-store.myshopify.com \
+  -e SHOPIFY_STOREFRONT_TOKEN=your-storefront-token mcp-store-tools
+claude mcp add --transport http my-store http://localhost:8000/mcp
+```
+
+HTTP mode has no authentication of its own; read [SECURITY.md](SECURITY.md) before exposing it.
 
 ## Agent skill
 
@@ -108,7 +133,8 @@ them as untrusted:
 - Tool descriptions and the server instructions tell the model the content is data to quote,
   not instructions to follow.
 
-The design reasoning is in [docs/decisions.md](docs/decisions.md).
+The design reasoning is in [docs/decisions.md](docs/decisions.md); the security model and how to
+report a vulnerability are in [SECURITY.md](SECURITY.md).
 
 ## Development
 
@@ -121,8 +147,9 @@ The default tests never call Shopify: the GraphQL client runs against `httpx.Moc
 server tests connect a real MCP client in-process to check the tool list, schemas, and error
 results a client actually sees, and a skill test checks `SKILL.md` names exactly the served tools.
 
-`MCP_STORE_TOOLS_LIVE=1 uv run pytest tests/test_live.py` starts the server over stdio in demo
-mode and calls every tool against the real Storefront API. CI runs it weekly.
+`MCP_STORE_TOOLS_LIVE=1 uv run pytest tests/test_live.py` starts the server in demo mode over
+stdio and over HTTP and calls the tools against the real Storefront API. CI runs it weekly, and
+builds the Docker image on every push. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Releases: bump `version` in `pyproject.toml`, add a `CHANGELOG.md` entry, and push a `v*` tag.
 
