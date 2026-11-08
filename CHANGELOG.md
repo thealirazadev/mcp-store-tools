@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Ctrl+C stops the server on the first press with exit code 130, without tracebacks.
+
 ## 0.4.0 - 2026-11-08
 
 - `search_products` filters by `min_price`, `max_price`, and `in_stock_only`, using Shopify's
