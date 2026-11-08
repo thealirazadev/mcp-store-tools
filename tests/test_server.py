@@ -158,3 +158,11 @@ def test_config_reads_country_and_language(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("SHOPIFY_COUNTRY", "Britain")
     with pytest.raises(SystemExit, match="SHOPIFY_COUNTRY"):
         config_from_env()
+
+
+async def test_search_rejects_an_inverted_price_range() -> None:
+    async with client() as c:
+        result = await c.call_tool(
+            "search_products", {"query": "shoe", "min_price": 50, "max_price": 10}
+        )
+    assert result.is_error and "min_price" in text(result)

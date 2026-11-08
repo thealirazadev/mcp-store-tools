@@ -27,6 +27,8 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
 
         found = (await call("search_products", query="shirt", limit=3))["result"]
         assert found and all(p["handle"] and p["price"] for p in found)
+        capped = (await call("search_products", query="shirt", max_price=30))["result"]
+        assert all(float(p["price"].split()[0]) <= 30 for p in capped)
         product = await call("get_product", handle=found[0]["handle"])
         assert product["variants"]
         handle = (await call("list_collections"))["result"][0]["handle"]

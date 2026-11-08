@@ -8,6 +8,7 @@ import argparse
 import os
 import re
 import sys
+from decimal import Decimal
 from importlib.metadata import version
 from typing import Annotated, Any, Literal, get_args
 
@@ -57,15 +58,23 @@ def build_server(store: Storefront) -> MCPServer:
             raise ToolError(str(exc)) from exc
 
     @server.tool(
-        description="Search published products by keywords; returns title, price, availability, "
+        description="Search published products by keywords, optionally within a price range "
+        "(in the store's currency) or in stock only; returns title, price, availability, image, "
         "and URL for each match." + UNTRUSTED,
         annotations=READ_ONLY,
     )
     def search_products(
         query: Annotated[str, Field(min_length=1, max_length=200, description="Search words")],
         limit: Annotated[int, Field(ge=1, le=20)] = 5,
+        min_price: Annotated[Decimal | None, Field(ge=0)] = None,
+        max_price: Annotated[Decimal | None, Field(ge=0)] = None,
+        in_stock_only: bool = False,
     ) -> list[dict[str, Any]]:
-        results: list[dict[str, Any]] = call(store.search_products, query, limit)
+        if min_price is not None and max_price is not None and min_price > max_price:
+            raise ToolError("min_price must not be greater than max_price.")
+        results: list[dict[str, Any]] = call(
+            store.search_products, query, limit, min_price, max_price, in_stock_only
+        )
         return results
 
     @server.tool(
