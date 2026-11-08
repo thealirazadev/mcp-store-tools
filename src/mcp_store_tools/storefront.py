@@ -92,6 +92,13 @@ query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
 }}
 """
 
+# Same query plus stock counts, used while the token has unauthenticated_read_product_inventory.
+PRODUCT_INVENTORY_QUERY = PRODUCT_QUERY.replace(
+    "compareAtPrice { amount currencyCode }",
+    "compareAtPrice { amount currencyCode } quantityAvailable",
+)
+assert PRODUCT_INVENTORY_QUERY != PRODUCT_QUERY
+
 _PAGE = f"nodes {{ {_PRODUCT_FIELDS} }} pageInfo {{ hasNextPage endCursor }}"
 _PAGE_ARGS = "first: $first, after: $after, sortKey: $sortKey, reverse: $reverse"
 
@@ -238,6 +245,8 @@ class Storefront:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._clock = clock
+        # None until the first product lookup shows whether the token may read stock counts.
+        self._inventory: bool | None = None
         self._cache: dict[str, tuple[float, Any]] = {}
         self._config = config
         self._max_retries = max_retries
@@ -373,7 +382,18 @@ class Storefront:
         return results
 
     def get_product(self, handle: str, country: str | None = None) -> dict[str, Any] | None:
-        node = self.query(PRODUCT_QUERY, {"handle": handle}, country).get("product")
+        variables = {"handle": handle}
+        node = None
+        if self._inventory is not False:
+            try:
+                node = self.query(PRODUCT_INVENTORY_QUERY, variables, country).get("product")
+                self._inventory = True
+            except StorefrontError as exc:
+                if "quantityAvailable" not in str(exc):
+                    raise
+                self._inventory = False  # the token lacks the inventory scope; stop asking
+        if self._inventory is False:
+            node = self.query(PRODUCT_QUERY, variables, country).get("product")
         if node is None:
             return None
         product = _product(node)
@@ -662,7 +682,17 @@ def _variant(v: dict[str, Any]) -> dict[str, Any]:
         "price": _money(v["price"]),
         "compare_at_price": _money(compare) if compare else "",
         "options": {o["name"]: o["value"] for o in v.get("selectedOptions") or []},
+        "quantity_available": _quantity(v),
     }
+
+
+def _quantity(v: dict[str, Any]) -> int | None:
+    """Units in stock, or None when unknown: the token cannot read stock, or Shopify reports 0
+    for an item that is still for sale (inventory not tracked, or overselling allowed)."""
+    quantity = v.get("quantityAvailable")
+    if quantity is None or (quantity <= 0 and v["availableForSale"]):
+        return None
+    return max(int(quantity), 0)
 
 
 def _numeric_id(gid: str) -> str:

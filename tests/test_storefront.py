@@ -58,6 +58,7 @@ def test_product_includes_variants_and_missing_is_none() -> None:
         "available": False,
         "price": "99.0 USD",
         "compare_at_price": "120.0 USD",
+        "quantity_available": None,
         "options": {"Size": "US 12"},
     }
     assert product["image"] == "https://cdn.example/trail-runner.jpg"
@@ -381,3 +382,57 @@ def test_page_search_falls_back_to_articles_too() -> None:
 
     assert found[0]["kind"] == "article" and found[0]["handle"] == "waxing-your-boots"
     assert found[0]["text"] == "Wax leather boots every season."
+
+
+def test_stock_counts_when_the_token_allows_them() -> None:
+    counts = {"1001": 3, "1002": 0}
+
+    def respond(payload: dict[str, Any]) -> dict[str, Any]:
+        body = fakes.respond(payload)
+        if "quantityAvailable" in payload["query"] and body["data"].get("product"):
+            variants = [
+                {**v, "quantityAvailable": counts[v["id"].rsplit("/", 1)[-1]]}
+                for v in body["data"]["product"]["variants"]["nodes"]
+            ]
+            body["data"]["product"]["variants"] = {"nodes": variants}
+        return body
+
+    product = Storefront(CONFIG, transport=fakes.transport(respond)).get_product("trail-runner")
+
+    assert product is not None
+    assert [v["quantity_available"] for v in product["variants"]] == [3, 0]
+
+
+def test_untracked_stock_reads_as_unknown_not_zero() -> None:
+    from mcp_store_tools.storefront import _quantity
+
+    assert _quantity({"quantityAvailable": 0, "availableForSale": True}) is None
+    assert _quantity({"quantityAvailable": -2, "availableForSale": True}) is None
+    assert _quantity({"quantityAvailable": 0, "availableForSale": False}) == 0
+    assert _quantity({"availableForSale": True}) is None
+
+
+def test_a_token_without_inventory_scope_falls_back_once_and_remembers() -> None:
+    calls: list[dict[str, Any]] = []
+
+    def respond(payload: dict[str, Any]) -> dict[str, Any]:
+        if "quantityAvailable" in payload["query"]:
+            return {"errors": [{"message": "Access denied for quantityAvailable field."}]}
+        return fakes.respond(payload)
+
+    store = Storefront(CONFIG, transport=fakes.transport(respond, calls=calls))
+    first = store.get_product("trail-runner")
+    store.get_product("trail-runner")
+
+    assert first is not None and first["variants"][0]["quantity_available"] is None
+    with_stock = ["quantityAvailable" in c["query"] for c in calls]
+    assert with_stock == [True, False, False]
+
+
+def test_other_errors_on_the_stock_query_are_not_swallowed() -> None:
+    def respond(payload: dict[str, Any]) -> dict[str, Any]:
+        return {"errors": [{"message": "Throttled"}]}
+
+    store = Storefront(CONFIG, transport=fakes.transport(respond))
+    with pytest.raises(StorefrontError, match="Throttled"):
+        store.get_product("trail-runner")
