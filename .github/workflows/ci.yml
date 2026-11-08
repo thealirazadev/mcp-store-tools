@@ -9,6 +9,11 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
     steps:
       - uses: actions/checkout@v4
 
@@ -16,7 +21,7 @@ jobs:
         with:
           version: "0.11.28"
 
-      - run: uv python install 3.12
+      - run: uv python install ${{ matrix.python }}
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
