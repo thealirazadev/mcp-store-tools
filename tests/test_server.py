@@ -43,6 +43,11 @@ async def test_tools_are_listed_with_read_only_hints_and_bounds() -> None:
         "browse_products",
         "list_policies",
         "get_policy",
+        "get_recommendations",
+        "get_store_info",
+        "search_pages",
+        "build_cart_link",
+        "audit_catalog",
     }
     assert all(t.annotations and t.annotations.read_only_hint for t in tools.values())
     limit = tools["search_products"].input_schema["properties"]["limit"]
@@ -247,3 +252,69 @@ def test_run_serves_the_chosen_transport(monkeypatch: pytest.MonkeyPatch) -> Non
     srv.run(FakeServer(), CONFIG, http)  # type: ignore[arg-type]
 
     assert served == [("stdio", "stdio"), ("http", "127.0.0.1", 9000, "s3cret")]
+
+
+async def test_recommendations_store_info_and_pages() -> None:
+    async with client() as c:
+        similar = payload(await c.call_tool("get_recommendations", {"handle": "trail-runner"}))
+        missing = await c.call_tool("get_recommendations", {"handle": "nope"})
+        bad_kind = await c.call_tool(
+            "get_recommendations", {"handle": "trail-runner", "kind": "random"}
+        )
+        info = payload(await c.call_tool("get_store_info", {}))
+        pages = payload(await c.call_tool("search_pages", {"query": "size guide"}))
+
+    assert [p["handle"] for p in similar["result"]] == ["summit-boot"]
+    assert missing.is_error and "nope" in text(missing)
+    assert bad_kind.is_error
+    assert info["name"] == "Northpeak" and info["ships_to"] == ["US", "CA"]
+    assert pages["result"][0]["url"] == "https://demo.example/pages/size-guide"
+
+
+async def test_build_cart_link_merges_lines_and_rejects_bad_items() -> None:
+    async with client() as c:
+        link = payload(
+            await c.call_tool(
+                "build_cart_link",
+                {
+                    "items": [
+                        {"handle": "trail-runner", "variant_id": "1001", "quantity": 1},
+                        {"handle": "trail-runner", "variant_id": "1001"},
+                    ]
+                },
+            )
+        )
+        sold_out = await c.call_tool(
+            "build_cart_link", {"items": [{"handle": "trail-runner", "variant_id": "1002"}]}
+        )
+        guessed = await c.call_tool(
+            "build_cart_link", {"items": [{"handle": "trail-runner", "variant_id": "abc"}]}
+        )
+        empty = await c.call_tool("build_cart_link", {"items": []})
+        too_many = await c.call_tool(
+            "build_cart_link",
+            {
+                "items": [
+                    {"handle": "trail-runner", "variant_id": "1001", "quantity": 99},
+                    {"handle": "trail-runner", "variant_id": "1001"},
+                ]
+            },
+        )
+
+    assert link["url"] == "https://demo.example/cart/1001:2"
+    assert link["subtotal"] == "178.0 USD"
+    assert sold_out.is_error and "Sold out" in text(sold_out)
+    assert guessed.is_error and empty.is_error
+    assert too_many.is_error and "99" in text(too_many)
+
+
+async def test_audit_catalog_tool_reports_the_whole_catalog() -> None:
+    async with client() as c:
+        report = payload(await c.call_tool("audit_catalog", {"examples_per_check": 1}))
+
+    assert report["products_checked"] == 2 and report["truncated"] is False
+    # The fake catalog serves the same in-stock product on both pages.
+    assert report["checks"]["sold_out"]["count"] == 0
+    assert report["checks"]["duplicate_title"]["count"] == 2
+    assert len(report["checks"]["duplicate_title"]["examples"]) == 1
+    assert set(report["top_issues"]) == {"duplicate_title", "short_description"}

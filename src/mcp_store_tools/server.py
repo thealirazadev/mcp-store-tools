@@ -16,12 +16,14 @@ from typing import Annotated, Any, Literal, get_args
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
-from pydantic import Field
+from pydantic import BaseModel, Field
 
+from mcp_store_tools.audit import audit
 from mcp_store_tools.http import serve
 from mcp_store_tools.storefront import (
     DEMO_SHOP,
     POLICY_FIELDS,
+    RECOMMENDATION_INTENTS,
     SORTS,
     Config,
     Storefront,
@@ -40,6 +42,15 @@ assert set(get_args(PolicyKind)) == set(POLICY_FIELDS)
 Sort = Literal["best_selling", "price_low_to_high", "price_high_to_low", "newest", "title"]
 assert set(get_args(Sort)) == set(SORTS)
 HANDLE = r"^[a-z0-9][a-z0-9-]{0,254}$"
+RecommendationKind = Literal["similar", "goes_with"]
+assert set(get_args(RecommendationKind)) == set(RECOMMENDATION_INTENTS)
+READ_ONLY_CLOSED = ToolAnnotations(read_only_hint=True, destructive_hint=False)
+
+
+class CartItem(BaseModel):
+    handle: Annotated[str, Field(pattern=HANDLE, description="Product handle")]
+    variant_id: Annotated[str, Field(pattern=r"^[0-9]{1,20}$", description="From get_product")]
+    quantity: Annotated[int, Field(ge=1, le=99)] = 1
 
 
 def build_server(store: Storefront) -> MCPServer:
@@ -48,8 +59,9 @@ def build_server(store: Storefront) -> MCPServer:
         version=version("mcp-store-tools"),
         website_url="https://github.com/thealirazadev/mcp-store-tools",
         instructions=(
-            "Read-only access to one Shopify store's published products and policies. "
-            "Cite the product or policy URL when you answer from it." + UNTRUSTED
+            "Read-only access to one Shopify store's published products, collections, pages, "
+            "and policies. Cite the product, page, or policy URL when you answer from it. "
+            "build_cart_link only creates a link; the shopper decides whether to buy." + UNTRUSTED
         ),
     )
 
@@ -141,24 +153,90 @@ def build_server(store: Storefront) -> MCPServer:
             raise ToolError(f"The store does not publish a {kind} policy.")
         return {"kind": kind, **policies[kind]}
 
-    @server.prompt(
-        title="Audit the catalog",
-        description="Walk every product and report listing problems for the merchant.",
+    @server.tool(
+        description="Products Shopify recommends for a product: 'similar' (alternatives) or "
+        "'goes_with' (complementary items to buy together)." + UNTRUSTED,
+        annotations=READ_ONLY,
     )
-    def audit_catalog() -> str:
+    def get_recommendations(
+        handle: Annotated[str, Field(pattern=HANDLE)],
+        kind: RecommendationKind = "similar",
+        limit: Annotated[int, Field(ge=1, le=10)] = 5,
+    ) -> list[dict[str, Any]]:
+        found: list[dict[str, Any]] | None = call(store.recommendations, handle, kind)
+        if found is None:
+            raise ToolError(f"No published product has the handle '{handle}'.")
+        return found[:limit]
+
+    @server.tool(
+        description="The store's name, website, currency, countries it ships to, markets "
+        "(country and currency), languages, and accepted card brands and wallets. Use it for "
+        "'do you ship to ...?' and 'can I pay with ...?'." + UNTRUSTED,
+        annotations=READ_ONLY,
+    )
+    def get_store_info() -> dict[str, Any]:
+        info: dict[str, Any] = call(store.store_info)
+        return info
+
+    @server.tool(
+        description="Search the store's content pages, such as size guides, FAQs, about, and "
+        "contact pages; returns each page's text and URL." + UNTRUSTED,
+        annotations=READ_ONLY,
+    )
+    def search_pages(
+        query: Annotated[str, Field(min_length=1, max_length=200)],
+        limit: Annotated[int, Field(ge=1, le=5)] = 3,
+    ) -> list[dict[str, str]]:
+        pages: list[dict[str, str]] = call(store.search_pages, query, limit)
+        return pages
+
+    @server.tool(
+        description="Make a checkout-ready cart link for chosen variants (handle and variant id "
+        "from get_product) after checking each is published and in stock. Nothing is ordered or "
+        "saved: the shopper opens the link and decides. Returns the link, line prices, and "
+        "subtotal before discounts, shipping, and taxes.",
+        annotations=READ_ONLY_CLOSED,
+    )
+    def build_cart_link(
+        items: Annotated[list[CartItem], Field(min_length=1, max_length=20)],
+    ) -> dict[str, Any]:
+        merged: dict[tuple[str, str], int] = {}
+        for item in items:
+            key = (item.handle, item.variant_id)
+            merged[key] = merged.get(key, 0) + item.quantity
+        if any(quantity > 99 for quantity in merged.values()):
+            raise ToolError("At most 99 of one variant per cart link.")
+        lines = [(handle, variant, quantity) for (handle, variant), quantity in merged.items()]
+        link: dict[str, Any] = call(store.cart_link, lines)
+        return link
+
+    @server.tool(
+        description="For the merchant: audit the published catalog for listing problems "
+        "(short descriptions, missing images, type, vendor, or tags, sold out, not on the "
+        "online store, suspicious price ranges, title problems, duplicates) in one call. "
+        "Returns counts, percentages, examples, and the top issues.",
+        annotations=READ_ONLY,
+    )
+    def audit_catalog(
+        max_products: Annotated[int, Field(ge=1, le=5000)] = 1000,
+        examples_per_check: Annotated[int, Field(ge=0, le=50)] = 10,
+    ) -> dict[str, Any]:
+        products, truncated = call(store.all_products, max_products)
+        return audit(products, truncated, examples_per_check)
+
+    @server.prompt(
+        name="audit_catalog",
+        title="Audit the catalog",
+        description="Audit every product and report listing problems for the merchant.",
+    )
+    def audit_catalog_prompt() -> str:
         return (
             "Audit this store's catalog for listing problems.\n"
-            "1. Call list_collections. Then page through browse_products(sort='title', limit=50), "
-            "passing next_cursor back as cursor with the same sort until it is null; stop after "
-            "20 pages and ask before continuing.\n"
-            "2. Flag products with: an empty or very short description (under 100 characters), "
-            "no product type, no vendor, no tags, an empty url (not on the online store), "
-            "available false (sold out), a price range whose top is over 3x its bottom, or a "
-            "title in ALL CAPS, over 70 characters, or duplicated.\n"
-            "3. Report a summary table (count and percentage per check), then the products per "
-            "check with links (at most 25 each), then the three fixes that help the most "
-            "products. Note that the audit cannot see drafts, inventory counts, SEO fields, or "
-            "sales."
+            "1. Call audit_catalog. If truncated is true, say how many products were checked.\n"
+            "2. Report a summary table (label, count, percent) for every check with a count "
+            "above zero, then the example products per check with links.\n"
+            "3. End with the three fixes that help the most products (top_issues), in plain "
+            "words, and the audit's scope note."
         )
 
     @server.prompt(
