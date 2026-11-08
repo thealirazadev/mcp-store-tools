@@ -62,6 +62,20 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
         report = await call("audit_catalog", max_products=100, examples_per_check=1)
         assert report["products_checked"] > 0 and set(report["checks"]) >= {"sold_out"}
 
+        deals = await call("find_deals", max_products=100)
+        assert deals["products_checked"] > 0
+        both = [p["handle"] for p in found[:2]]
+        compared = await call("compare_products", handles=both)
+        assert len(compared["products"]) == 2
+        option = dict(list(variant["options"].items())[:1])
+        word = max(product["title"].split(), key=len)
+        sized = (await call("search_products", query=word, options=option, limit=20))["result"]
+        assert any(p["handle"] == product["handle"] for p in sized)
+        priced = await call("get_product", handle=product["handle"], country="US")
+        assert priced["variants"]
+        content = (await call("search_pages", query="liquid"))["result"]
+        assert any(entry["kind"] == "article" for entry in content)
+
 
 async def test_demo_store_over_streamable_http_with_a_bearer_token() -> None:
     import asyncio
@@ -154,6 +168,15 @@ async def test_real_store_with_a_storefront_token() -> None:
         await call("search_pages", query="contact")
         report = await call("audit_catalog", max_products=200)
         assert report["products_checked"] > 0
+        deals = await call("find_deals", max_products=200)
+        assert deals["products_checked"] == report["products_checked"]
+        second = page["products"][1]["handle"] if len(page["products"]) > 1 else first["handle"]
+        if second != first["handle"]:
+            assert (
+                len((await call("compare_products", handles=[first["handle"], second]))["products"])
+                == 2
+            )
+        await call("get_product", handle=first["handle"], country="CA")
         in_stock = next((v for v in product["variants"] if v["available"]), None)
         if in_stock:
             item = {"handle": first["handle"], "variant_id": in_stock["id"]}
