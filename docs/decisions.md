@@ -80,3 +80,24 @@ stdio stays the default: local clients start the server themselves and nothing l
 port. `--transport http` exists for hosting one store for several agents. It binds to localhost
 unless told otherwise and adds no authentication of its own: the data is public storefront data,
 and TLS plus access control belong in the reverse proxy in front of it (SECURITY.md).
+
+## 12. Search filters are enforced twice
+
+`search_products` sends price and stock filters to Shopify's `search` API, and then checks every
+result against the same bounds before returning it. A store (or the demo store) that ignores a
+filter would otherwise let the model quote a $40 product to a shopper who asked for under $30.
+Search moved from `products(query:)` to `search`, which is Shopify's storefront search with typo
+tolerance and is the only one that accepts `productFilters`.
+
+## 13. Prompts carry the workflows for clients without skills
+
+Not every client loads `SKILL.md`. The server also exposes three MCP prompts (catalog audit,
+product comparison, policy question) with the core of those workflows, and a test checks that
+each prompt names only tools the server actually serves.
+
+## 14. Optional bearer token, no TLS in process
+
+`MCP_AUTH_TOKEN` adds a small ASGI middleware that rejects any HTTP request without the exact
+bearer token (constant-time comparison, 401 with `WWW-Authenticate`). A full OAuth flow would be
+heavy for public catalog data; a shared token is enough to stop a hosted server becoming an open
+proxy to the store's API quota. TLS stays the reverse proxy's job.
