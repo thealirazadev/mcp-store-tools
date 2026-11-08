@@ -101,3 +101,11 @@ each prompt names only tools the server actually serves.
 bearer token (constant-time comparison, 401 with `WWW-Authenticate`). A full OAuth flow would be
 heavy for public catalog data; a shared token is enough to stop a hosted server becoming an open
 proxy to the store's API quota. TLS stays the reverse proxy's job.
+
+## 15. Search falls back to the keyword product query
+
+Tested against a real development store, Storefront `search` returned 0 results for
+"snowboard" while `products(query: "snowboard")` listed the store's snowboards: the search index
+of a new store (or of a channel) can be empty. When `search` returns nothing, the client runs the
+`products` keyword query and applies the same price and stock checks to its results, so a
+shopper is never told a product does not exist because of indexing.
