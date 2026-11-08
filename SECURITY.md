@@ -18,7 +18,8 @@ Supported: the latest release. Older versions do not get fixes.
   ([docs/decisions.md](docs/decisions.md), decision 2).
 - **No secrets in output.** Errors returned to the model never include the token, request URLs, or
   stack traces.
-- **HTTP mode has no authentication.** `--transport http` binds to `127.0.0.1` by default. The data
-  it serves is already public, but if you expose it beyond localhost, put it behind a reverse
-  proxy that handles TLS and authentication. The Docker image binds `0.0.0.0` inside the
-  container and relies on your deployment for this.
+- **HTTP mode.** `--transport http` binds to `127.0.0.1` by default. Set `MCP_AUTH_TOKEN` to a
+  long random value (`openssl rand -hex 32`) and every request must send
+  `Authorization: Bearer <token>`; the comparison is constant-time. The server does not terminate
+  TLS: when you expose it beyond localhost, put it behind a reverse proxy with HTTPS so the
+  token is never sent in clear. The Docker image binds `0.0.0.0` inside the container.
