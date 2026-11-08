@@ -8,10 +8,18 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python: ["3.11", "3.13"]
+        include:
+          # Claude Desktop users are mostly on macOS and Windows.
+          - os: macos-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.13"
     env:
       UV_PYTHON: ${{ matrix.python }}
     steps:

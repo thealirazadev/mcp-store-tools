@@ -2,6 +2,7 @@
 
 import json
 import re
+import sys
 from typing import Any
 
 import httpx
@@ -197,6 +198,9 @@ async def test_prompts_are_listed_and_name_only_real_tools() -> None:
     assert "Summit Boot" in texts[1]
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="SIGINT cannot be sent to a child process on Windows"
+)
 def test_ctrl_c_stops_the_server_once_without_a_traceback() -> None:
     import signal
     import subprocess
