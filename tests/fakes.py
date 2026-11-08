@@ -33,15 +33,17 @@ SOLD_OUT = {
     },
 }
 
-VARIANTS = {
+VARIANTS: dict[str, Any] = {
     "nodes": [
         {
+            "id": "gid://shopify/ProductVariant/1001",
             "title": "US 9",
             "availableForSale": True,
             "price": {"amount": "89.0", "currencyCode": "USD"},
             "selectedOptions": [{"name": "Size", "value": "US 9"}],
         },
         {
+            "id": "gid://shopify/ProductVariant/1002",
             "title": "US 12",
             "availableForSale": False,
             "price": {"amount": "99.0", "currencyCode": "USD"},
@@ -74,6 +76,42 @@ COLLECTIONS = [
 ]
 
 
+STORE_INFO = {
+    "shop": {
+        "name": "Northpeak",
+        "description": "Trail gear.",
+        "primaryDomain": {"url": "https://demo.example"},
+        "shipsToCountries": ["US", "CA"],
+        "paymentSettings": {
+            "currencyCode": "USD",
+            "acceptedCardBrands": ["VISA", "MASTERCARD"],
+            "supportedDigitalWallets": ["SHOPIFY_PAY"],
+        },
+    },
+    "localization": {
+        "availableCountries": [
+            {"isoCode": "US", "name": "United States", "currency": {"isoCode": "USD"}}
+        ],
+        "availableLanguages": [{"isoCode": "EN", "endonymName": "English"}],
+    },
+}
+
+PAGES = [
+    {
+        "handle": "size-guide",
+        "title": "Size guide",
+        "body": "<p>Our shoes run <b>half a size small</b>.</p>",
+        "onlineStoreUrl": "https://demo.example/pages/size-guide",
+    },
+    {
+        "handle": "contact",
+        "title": "Contact",
+        "body": "<p>Email us any time.</p>",
+        "onlineStoreUrl": "https://demo.example/pages/contact",
+    },
+]
+
+
 def page(has_next: bool) -> dict[str, Any]:
     info = {"hasNextPage": has_next, "endCursor": "cursor-1" if has_next else None}
     return {"nodes": [PRODUCT], "pageInfo": info}
@@ -92,6 +130,23 @@ def respond(payload: dict[str, Any]) -> dict[str, Any]:
         if payload["variables"]["handle"] != PRODUCT["handle"]:
             return {"data": {"product": None}}
         return {"data": {"product": {**PRODUCT, "variants": VARIANTS}}}
+    if "query Recommendations" in query:
+        if payload["variables"]["handle"] != PRODUCT["handle"]:
+            return {"data": {"product": None, "productRecommendations": None}}
+        return {
+            "data": {"product": {"handle": PRODUCT["handle"]}, "productRecommendations": [SOLD_OUT]}
+        }
+    if "query StoreInfo" in query:
+        return {"data": STORE_INFO}
+    if "query PageSearch" in query:
+        hits = [
+            p
+            for p in PAGES
+            if payload["variables"]["query"] == "contact" and p["handle"] == "contact"
+        ]
+        return {"data": {"search": {"nodes": hits}}}
+    if "query PageList" in query:
+        return {"data": {"pages": {"nodes": PAGES}}}
     if "query CollectionBrowse" in query:
         if payload["variables"]["handle"] != "shoes":
             return {"data": {"collection": None}}

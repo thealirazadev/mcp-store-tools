@@ -53,6 +53,7 @@ def test_product_includes_variants_and_missing_is_none() -> None:
 
     assert product is not None
     assert product["variants"][1] == {
+        "id": "1002",
         "title": "US 12",
         "available": False,
         "price": "99.0 USD",
@@ -232,3 +233,68 @@ def test_search_falls_back_to_the_keyword_query_when_the_index_is_empty() -> Non
     ]
     assert calls[1]["variables"]["query"] == "unindexed"
     assert [p["handle"] for p in found] == ["trail-runner"]  # price filter still enforced
+
+
+def test_recommendations_map_kinds_to_intents_and_missing_is_none() -> None:
+    calls: list[dict[str, Any]] = []
+    store = Storefront(CONFIG, transport=fakes.transport(calls=calls))
+
+    similar = store.recommendations("trail-runner", "similar")
+    store.recommendations("trail-runner", "goes_with")
+
+    assert [c["variables"]["intent"] for c in calls] == ["RELATED", "COMPLEMENTARY"]
+    assert similar is not None and [p["handle"] for p in similar] == ["summit-boot"]
+    assert store.recommendations("nope", "similar") is None
+
+
+def test_store_info_is_flattened_and_cached() -> None:
+    calls: list[dict[str, Any]] = []
+    store = Storefront(CONFIG, transport=fakes.transport(calls=calls))
+
+    info = store.store_info()
+    store.store_info()
+
+    assert len(calls) == 1
+    assert info["ships_to"] == ["US", "CA"] and info["currency"] == "USD"
+    assert info["markets"] == [{"country": "US", "name": "United States", "currency": "USD"}]
+    assert info["languages"] == ["EN"] and info["wallets"] == ["SHOPIFY_PAY"]
+
+
+def test_page_search_uses_the_index_then_falls_back_to_matching_words() -> None:
+    calls: list[dict[str, Any]] = []
+    store = Storefront(CONFIG, transport=fakes.transport(calls=calls))
+
+    indexed = store.search_pages("contact", 3)
+    fallback = store.search_pages("what size should I order", 3)
+    nothing = store.search_pages("warranty", 3)
+
+    assert [p["handle"] for p in indexed] == ["contact"]
+    assert [p["handle"] for p in fallback] == ["size-guide"]
+    assert fallback[0]["text"] == "Our shoes run half a size small."
+    assert nothing == []
+
+
+def test_cart_link_checks_variants_and_totals_lines() -> None:
+    store = Storefront(CONFIG, transport=fakes.transport())
+
+    link = store.cart_link([("trail-runner", "1001", 2)])
+
+    assert link["url"] == "https://demo.example/cart/1001:2"
+    assert link["lines"][0]["line_total"] == "178.0 USD"
+    assert link["subtotal"] == "178.0 USD"
+    with pytest.raises(StorefrontError, match=r"9999 is not a variant of 'trail-runner'"):
+        store.cart_link([("trail-runner", "1001", 1), ("trail-runner", "9999", 1)])
+    with pytest.raises(StorefrontError, match=r"no published product 'nope'"):
+        store.cart_link([("nope", "1001", 1)])
+    with pytest.raises(StorefrontError, match=r"Sold out.*US 12"):
+        store.cart_link([("trail-runner", "1002", 1)])
+
+
+def test_all_products_walks_every_page_and_reports_truncation() -> None:
+    store = Storefront(CONFIG, transport=fakes.transport())
+
+    everything, cut = store.all_products(100)
+    capped, capped_cut = store.all_products(1)
+
+    assert len(everything) == 2 and cut is False
+    assert len(capped) == 1 and capped_cut is True

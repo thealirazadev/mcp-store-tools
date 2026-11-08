@@ -67,7 +67,7 @@ query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
     {_PRODUCT_FIELDS}
     variants(first: {MAX_VARIANTS}) {{
       nodes {{
-        title availableForSale price {{ amount currencyCode }} selectedOptions {{ name value }}
+        id title availableForSale price {{ amount currencyCode }} selectedOptions {{ name value }}
       }}
       pageInfo {{ hasNextPage }}
     }}
@@ -108,6 +108,43 @@ SORTS = {
     "newest": ("CREATED_AT", "CREATED", True),
     "title": ("TITLE", "TITLE", False),
 }
+
+RECOMMENDATIONS_QUERY = f"""
+query Recommendations($handle: String!, $intent: ProductRecommendationIntent!, {_CTX_VARS})
+{_CTX} {{
+  product(handle: $handle) {{ handle }}
+  productRecommendations(productHandle: $handle, intent: $intent) {{ {_PRODUCT_FIELDS} }}
+}}
+"""
+
+STORE_INFO_QUERY = f"""
+query StoreInfo({_CTX_VARS}) {_CTX} {{
+  shop {{
+    name description primaryDomain {{ url }} shipsToCountries
+    paymentSettings {{ currencyCode acceptedCardBrands supportedDigitalWallets }}
+  }}
+  localization {{
+    availableCountries {{ isoCode name currency {{ isoCode }} }}
+    availableLanguages {{ isoCode endonymName }}
+  }}
+}}
+"""
+
+_PAGE_FIELDS = "handle title body onlineStoreUrl"
+
+PAGE_SEARCH_QUERY = f"""
+query PageSearch($query: String!, $first: Int!, {_CTX_VARS}) {_CTX} {{
+  search(query: $query, first: $first, types: [PAGE]) {{
+    nodes {{ ... on Page {{ {_PAGE_FIELDS} }} }}
+  }}
+}}
+"""
+
+PAGE_LIST_QUERY = (
+    f"query PageList({_CTX_VARS}) {_CTX} {{ pages(first: 100) {{ nodes {{ {_PAGE_FIELDS} }} }} }}"
+)
+
+RECOMMENDATION_INTENTS = {"similar": "RELATED", "goes_with": "COMPLEMENTARY"}
 
 POLICIES_QUERY = (
     f"query Policies({_CTX_VARS}) {_CTX} {{ shop {{ "
@@ -287,6 +324,7 @@ class Storefront:
         product = _product(node)
         product["variants"] = [
             {
+                "id": _numeric_id(v["id"]),
                 "title": v["title"],
                 "available": v["availableForSale"],
                 "price": _money(v["price"]),
@@ -349,6 +387,136 @@ class Storefront:
                     "text": plain_text(policy.get("body"), limit=8000),
                 }
         return found
+
+    def recommendations(self, handle: str, kind: str) -> list[dict[str, Any]] | None:
+        """Shopify's own recommendations; None when the product does not exist."""
+        variables = {"handle": handle, "intent": RECOMMENDATION_INTENTS[kind]}
+        data = self.query(RECOMMENDATIONS_QUERY, variables)
+        if data.get("product") is None:
+            return None
+        return [_product(node) for node in data.get("productRecommendations") or []]
+
+    def store_info(self) -> dict[str, Any]:
+        result: dict[str, Any] = self._cached("store_info", self._load_store_info)
+        return result
+
+    def _load_store_info(self) -> dict[str, Any]:
+        data = self.query(STORE_INFO_QUERY)
+        shop, local = data["shop"], data.get("localization") or {}
+        payments = shop.get("paymentSettings") or {}
+        return {
+            "name": shop["name"],
+            "description": plain_text(shop.get("description"), limit=500),
+            "url": (shop.get("primaryDomain") or {}).get("url") or "",
+            "currency": payments.get("currencyCode") or "",
+            "ships_to": shop.get("shipsToCountries") or [],
+            "card_brands": payments.get("acceptedCardBrands") or [],
+            "wallets": payments.get("supportedDigitalWallets") or [],
+            "markets": [
+                {"country": c["isoCode"], "name": c["name"], "currency": c["currency"]["isoCode"]}
+                for c in local.get("availableCountries") or []
+            ],
+            "languages": [lang["isoCode"] for lang in local.get("availableLanguages") or []],
+        }
+
+    def search_pages(self, query: str, limit: int) -> list[dict[str, str]]:
+        """Content pages (size guides, FAQs, about); falls back to matching words when the
+        search index returns nothing, as with product search."""
+        found = self.query(PAGE_SEARCH_QUERY, {"query": query, "first": limit})["search"]
+        nodes = [n for n in found["nodes"] if n]
+        if not nodes:
+            words = [w for w in re.findall(r"\w+", query.lower()) if len(w) > 2] or [query.lower()]
+            every = self._cached("pages", lambda: self.query(PAGE_LIST_QUERY)["pages"]["nodes"])
+
+            def score(page: dict[str, Any]) -> int:
+                title, body = page["title"].lower(), plain_text(page.get("body"), 20000).lower()
+                return sum(3 * (w in title) + (w in body) for w in words)
+
+            nodes = sorted((p for p in every if score(p)), key=score, reverse=True)[:limit]
+        return [
+            {
+                "handle": page["handle"],
+                "title": page["title"],
+                "url": page.get("onlineStoreUrl") or "",
+                "text": plain_text(page.get("body"), limit=3000),
+            }
+            for page in nodes
+        ]
+
+    def cart_link(self, items: list[tuple[str, str, int]]) -> dict[str, Any]:
+        """A cart permalink for (product handle, variant id, quantity) items, after checking
+        each variant belongs to that published product and is in stock, so the model cannot
+        hand a shopper a link to a guessed or sold-out item. Nothing is written to the store;
+        the cart is created when the shopper opens the link."""
+        products: dict[str, dict[str, Any] | None] = {}
+        lines, problems, sold_out = [], [], []
+        for handle, variant_id, quantity in items:
+            if handle not in products:
+                products[handle] = self.get_product(handle)
+            product = products[handle]
+            if product is None:
+                problems.append(f"no published product '{handle}'")
+                continue
+            variant = next((v for v in product["variants"] if v["id"] == variant_id), None)
+            if variant is None:
+                problems.append(f"variant {variant_id} is not a variant of '{handle}'")
+                continue
+            if not variant["available"]:
+                sold_out.append(f"{product['title']} ({variant['title']})")
+                continue
+            amount, currency = variant["price"].split()
+            lines.append(
+                {
+                    "product": product["title"],
+                    "variant": variant["title"],
+                    "variant_id": variant_id,
+                    "quantity": quantity,
+                    "unit_price": variant["price"],
+                    "line_total": f"{Decimal(amount) * quantity} {currency}",
+                    "_amount": Decimal(amount) * quantity,
+                    "_currency": currency,
+                }
+            )
+        if problems:
+            raise StorefrontError(
+                f"Cannot build the link: {'; '.join(problems)}. "
+                "Use a handle and variant id returned by get_product."
+            )
+        if sold_out:
+            raise StorefrontError(f"Sold out, so not added: {', '.join(sold_out)}.")
+        base = self.store_info()["url"].rstrip("/")
+        if not base:
+            raise StorefrontError("The store has no online store address for a cart link.")
+        currencies = {line["_currency"] for line in lines}
+        total = sum((line.pop("_amount") for line in lines), Decimal(0))
+        subtotal = f"{total} {currencies.pop()}" if len(currencies) == 1 else ""
+        for line in lines:
+            line.pop("_currency")
+        path = ",".join(f"{line['variant_id']}:{line['quantity']}" for line in lines)
+        return {
+            "url": f"{base}/cart/{path}",
+            "lines": lines,
+            "subtotal": subtotal,
+            "note": "Opens the store's cart with these items. Discounts, shipping, and taxes "
+            "are applied at checkout.",
+        }
+
+    def all_products(self, max_products: int) -> tuple[list[dict[str, Any]], bool]:
+        """Walk the catalog in title order; returns (products, truncated)."""
+        products: list[dict[str, Any]] = []
+        cursor = None
+        while len(products) < max_products:
+            page = self.browse(None, "title", min(100, max_products - len(products)), cursor)
+            assert page is not None
+            products += page["products"]
+            cursor = page["next_cursor"]
+            if cursor is None:
+                return products, False
+        return products, True
+
+
+def _numeric_id(gid: str) -> str:
+    return gid.rsplit("/", 1)[-1]
 
 
 def _graphql_error(response: httpx.Response) -> str:
