@@ -17,6 +17,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 from pydantic import Field
 
+from mcp_store_tools.http import serve
 from mcp_store_tools.storefront import (
     DEMO_SHOP,
     POLICY_FIELDS,
@@ -251,9 +252,11 @@ def main(argv: list[str] | None = None) -> None:
     config = Config(DEMO_SHOP, token="") if args.demo else config_from_env()
     server = build_server(Storefront(config))
     if args.transport == "http":
+        token = os.environ.get("MCP_AUTH_TOKEN", "").strip() or None
         url = f"http://{args.host}:{args.port}/mcp"
-        print(f"mcp-store-tools: serving {config.shop} at {url}", file=sys.stderr)
-        server.run("streamable-http", host=args.host, port=args.port)
+        auth = "bearer token required" if token else "no authentication"
+        print(f"mcp-store-tools: serving {config.shop} at {url} ({auth})", file=sys.stderr)
+        serve(server, args.host, args.port, token)
     else:
         print(f"mcp-store-tools: serving {config.shop} over stdio", file=sys.stderr)
         server.run("stdio")

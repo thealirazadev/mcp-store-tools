@@ -49,10 +49,12 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
         assert "<" not in policy["text"]
 
 
-async def test_demo_store_over_streamable_http() -> None:
+async def test_demo_store_over_streamable_http_with_a_bearer_token() -> None:
     import asyncio
     import socket
 
+    import httpx
+    import httpx2
     from mcp.client.streamable_http import streamable_http_client
 
     with socket.socket() as probe:
@@ -68,6 +70,7 @@ async def test_demo_store_over_streamable_http() -> None:
         "--port",
         str(port),
         stderr=asyncio.subprocess.DEVNULL,
+        env={**os.environ, "MCP_AUTH_TOKEN": "live-test-token"},
     )
     try:
         for _ in range(50):
@@ -78,8 +81,14 @@ async def test_demo_store_over_streamable_http() -> None:
             except OSError:
                 await asyncio.sleep(0.2)
         url = f"http://127.0.0.1:{port}/mcp"
+        async with httpx.AsyncClient() as anonymous:
+            assert (await anonymous.post(url, json={})).status_code == 401
+        authorised = httpx2.AsyncClient(
+            headers={"Authorization": "Bearer live-test-token"}, timeout=30
+        )
         async with (
-            streamable_http_client(url) as (read, write),
+            authorised,
+            streamable_http_client(url, http_client=authorised) as (read, write),
             ClientSession(read, write) as session,
         ):
             await session.initialize()
