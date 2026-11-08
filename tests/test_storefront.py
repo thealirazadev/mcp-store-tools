@@ -17,7 +17,12 @@ def test_search_sends_the_token_and_returns_plain_products() -> None:
 
     assert calls[0]["url"] == "https://demo.myshopify.com/api/2026-10/graphql.json"
     assert calls[0]["headers"]["x-shopify-storefront-access-token"] == "public-token"
-    assert calls[0]["variables"] == {"query": "trail shoe", "first": 5}
+    assert calls[0]["variables"] == {
+        "query": "trail shoe",
+        "first": 5,
+        "country": None,
+        "language": None,
+    }
     assert product["description"] == "Light shoe for rough trails."
     assert product["price"] == "89.0 USD to 99.0 USD"
 
@@ -105,9 +110,24 @@ def test_browse_maps_sorts_to_each_api_sort_key() -> None:
         "after": None,
         "reverse": True,
         "sortKey": "CREATED_AT",
+        "country": None,
+        "language": None,
     }
     assert calls[1]["variables"]["sortKey"] == "CREATED"
     assert calls[1]["variables"]["after"] == "abc"
     assert page is not None and page["next_cursor"] is None
     assert page["products"][0]["description"] == "Light shoe for rough trails."
     assert store.browse("hats", "title", 5, None) is None
+
+
+def test_country_and_language_are_sent_with_every_store_query() -> None:
+    calls: list[dict[str, Any]] = []
+    config = Config("demo.myshopify.com", "t", country="GB", language="EN")
+    store = Storefront(config, transport=fakes.transport(calls=calls))
+
+    store.search_products("shoe", 1)
+    store.policies()
+
+    for call in calls:
+        assert "@inContext(country: $country, language: $language)" in call["query"]
+        assert (call["variables"]["country"], call["variables"]["language"]) == ("GB", "EN")

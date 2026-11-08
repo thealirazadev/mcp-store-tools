@@ -149,8 +149,21 @@ def config_from_env() -> Config:
             "mcp-store-tools: set SHOPIFY_STORE_DOMAIN and SHOPIFY_STOREFRONT_TOKEN (see README)"
         )
     shop = store_domain(shop)
-    version = os.environ.get("SHOPIFY_API_VERSION", "").strip()
-    return Config(shop, token, version) if version else Config(shop, token)
+    version = os.environ.get("SHOPIFY_API_VERSION", "").strip() or Config.api_version
+    return Config(
+        shop,
+        token,
+        version,
+        country=optional_code("SHOPIFY_COUNTRY", r"[A-Z]{2}", "CA"),
+        language=optional_code("SHOPIFY_LANGUAGE", r"[A-Z]{2}(_[A-Z]{2})?", "FR or PT_BR"),
+    )
+
+
+def optional_code(variable: str, pattern: str, example: str) -> str | None:
+    value = os.environ.get(variable, "").strip().upper().replace("-", "_")
+    if value and not re.fullmatch(pattern, value):
+        raise SystemExit(f"mcp-store-tools: {variable} must be a code such as {example}")
+    return value or None
 
 
 def main(argv: list[str] | None = None) -> None:

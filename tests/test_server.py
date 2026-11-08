@@ -144,3 +144,16 @@ async def test_collections_then_browse_pages() -> None:
     assert first["products"][0]["handle"] == "trail-runner"
     assert missing.is_error and "hats" in text(missing)
     assert bad_sort.is_error
+
+
+def test_config_reads_country_and_language(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SHOPIFY_STORE_DOMAIN", "demo.myshopify.com")
+    monkeypatch.setenv("SHOPIFY_STOREFRONT_TOKEN", "t")
+    monkeypatch.setenv("SHOPIFY_COUNTRY", "gb")
+    monkeypatch.setenv("SHOPIFY_LANGUAGE", "pt-br")
+    config = config_from_env()
+    assert (config.country, config.language) == ("GB", "PT_BR")
+
+    monkeypatch.setenv("SHOPIFY_COUNTRY", "Britain")
+    with pytest.raises(SystemExit, match="SHOPIFY_COUNTRY"):
+        config_from_env()

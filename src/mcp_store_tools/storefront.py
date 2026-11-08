@@ -33,14 +33,19 @@ _PRODUCT_FIELDS = """
   priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
 """
 
+# Every query runs in the configured country and language: local currency, prices, and
+# translations for stores that sell internationally (Shopify Markets).
+_CTX_VARS = "$country: CountryCode, $language: LanguageCode"
+_CTX = "@inContext(country: $country, language: $language)"
+
 SEARCH_QUERY = f"""
-query Search($query: String!, $first: Int!) {{
+query Search($query: String!, $first: Int!, {_CTX_VARS}) {_CTX} {{
   products(first: $first, query: $query, sortKey: RELEVANCE) {{ nodes {{ {_PRODUCT_FIELDS} }} }}
 }}
 """
 
 PRODUCT_QUERY = f"""
-query Product($handle: String!) {{
+query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
   product(handle: $handle) {{
     {_PRODUCT_FIELDS}
     variants(first: 50) {{ nodes {{ title availableForSale price {{ amount currencyCode }} }} }}
@@ -52,7 +57,9 @@ _PAGE = f"nodes {{ {_PRODUCT_FIELDS} }} pageInfo {{ hasNextPage endCursor }}"
 _PAGE_ARGS = "first: $first, after: $after, sortKey: $sortKey, reverse: $reverse"
 
 BROWSE_QUERY = f"""
-query Browse($first: Int!, $after: String, $sortKey: ProductSortKeys!, $reverse: Boolean!) {{
+query Browse(
+  $first: Int!, $after: String, $sortKey: ProductSortKeys!, $reverse: Boolean!, {_CTX_VARS}
+) {_CTX} {{
   products({_PAGE_ARGS}) {{ {_PAGE} }}
 }}
 """
@@ -60,14 +67,14 @@ query Browse($first: Int!, $after: String, $sortKey: ProductSortKeys!, $reverse:
 COLLECTION_BROWSE_QUERY = f"""
 query CollectionBrowse(
   $handle: String!, $first: Int!, $after: String,
-  $sortKey: ProductCollectionSortKeys!, $reverse: Boolean!
-) {{
+  $sortKey: ProductCollectionSortKeys!, $reverse: Boolean!, {_CTX_VARS}
+) {_CTX} {{
   collection(handle: $handle) {{ products({_PAGE_ARGS}) {{ {_PAGE} }} }}
 }}
 """
 
 COLLECTIONS_QUERY = (
-    "query Collections { collections(first: 100) "
+    f"query Collections({_CTX_VARS}) {_CTX} {{ collections(first: 100) "
     "{ nodes { handle title description onlineStoreUrl } } }"
 )
 
@@ -81,7 +88,7 @@ SORTS = {
 }
 
 POLICIES_QUERY = (
-    "query Policies { shop { "
+    f"query Policies({_CTX_VARS}) {_CTX} {{ shop {{ "
     + " ".join(f"{field} {{ title body url }}" for field in POLICY_FIELDS.values())
     + " } }"
 )
@@ -130,6 +137,8 @@ class Config:
     shop: str
     token: str
     api_version: str = "2026-10"
+    country: str | None = None
+    language: str | None = None
 
     @property
     def endpoint(self) -> str:
@@ -161,10 +170,13 @@ class Storefront:
         )
 
     def query(self, document: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        variables = dict(variables or {})
+        if "$country" in document:
+            variables |= {"country": self._config.country, "language": self._config.language}
         for attempt in range(self._max_retries + 1):
             try:
                 response = self._client.post(
-                    self._config.endpoint, json={"query": document, "variables": variables or {}}
+                    self._config.endpoint, json={"query": document, "variables": variables}
                 )
             except httpx.HTTPError as exc:
                 if attempt < self._max_retries:
