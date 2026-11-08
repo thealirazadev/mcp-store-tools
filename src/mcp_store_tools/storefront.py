@@ -7,6 +7,7 @@ change the store or see orders and customers (docs/decisions.md, decision 1).
 import html
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Any
@@ -17,6 +18,7 @@ MAX_TEXT = 2000
 # Shopify's public sample store: real Storefront API responses, no token needed.
 DEMO_SHOP = "mock.shop"
 RETRY_STATUS = frozenset({429, 430, 500, 502, 503, 504})
+MAX_RETRY_WAIT = 10.0
 
 POLICY_FIELDS = {
     "refund": "refundPolicy",
@@ -143,10 +145,12 @@ class Storefront:
         transport: httpx.BaseTransport | None = None,
         max_retries: int = 3,
         backoff: float = 0.5,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._config = config
         self._max_retries = max_retries
         self._backoff = backoff
+        self._sleep = sleep
         self._client = httpx.Client(
             transport=transport,
             timeout=15,
@@ -164,12 +168,12 @@ class Storefront:
                 )
             except httpx.HTTPError as exc:
                 if attempt < self._max_retries:
-                    self._sleep(attempt)
+                    self._wait(attempt, None)
                     continue
                 raise StorefrontError("The store did not respond. Try again shortly.") from exc
             if response.status_code in RETRY_STATUS:
                 if attempt < self._max_retries:
-                    self._sleep(attempt)
+                    self._wait(attempt, response.headers.get("Retry-After"))
                     continue
                 break
             if response.status_code in (401, 403):
@@ -184,8 +188,13 @@ class Storefront:
             return data
         raise StorefrontError("The store is busy. Try again shortly.")
 
-    def _sleep(self, attempt: int) -> None:
-        time.sleep(self._backoff * 2**attempt)
+    def _wait(self, attempt: int, retry_after: str | None) -> None:
+        """Honour the server's Retry-After seconds when given, else exponential backoff."""
+        try:
+            delay = float(retry_after) if retry_after else self._backoff * 2**attempt
+        except ValueError:
+            delay = self._backoff * 2**attempt
+        self._sleep(min(max(delay, 0.0), MAX_RETRY_WAIT))
 
     def search_products(self, query: str, limit: int) -> list[dict[str, Any]]:
         data = self.query(SEARCH_QUERY, {"query": query, "first": limit})

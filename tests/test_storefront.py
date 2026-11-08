@@ -55,6 +55,26 @@ def test_throttling_is_retried_then_reported() -> None:
         Storefront(CONFIG, transport=always_busy, backoff=0).query("{ shop { name } }")
 
 
+def test_retry_after_is_honoured_and_capped() -> None:
+    waits: list[float] = []
+    replies = iter(
+        [
+            httpx.Response(429, headers={"Retry-After": "2"}),
+            httpx.Response(429, headers={"Retry-After": "3600"}),
+            httpx.Response(429, headers={"Retry-After": "soon"}),
+            httpx.Response(200, json={"data": {"shop": {}}}),
+        ]
+    )
+    store = Storefront(
+        CONFIG,
+        transport=httpx.MockTransport(lambda r: next(replies)),
+        backoff=0.5,
+        sleep=waits.append,
+    )
+    assert store.query("{ shop { name } }") == {"shop": {}}
+    assert waits == [2.0, 10.0, 2.0]
+
+
 def test_errors_never_leak_the_token() -> None:
     rejected = httpx.MockTransport(lambda r: httpx.Response(401, text="bad public-token"))
 
