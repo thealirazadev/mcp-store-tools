@@ -8,20 +8,36 @@
 ![python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-An [MCP](https://modelcontextprotocol.io) server that lets AI assistants such as Claude answer
-questions about a Shopify store from its live catalog and policies. It is read-only by
-construction: it uses a Storefront API token, which can only see what the public storefront
-already shows.
+An [MCP](https://modelcontextprotocol.io) server that turns any AI assistant into a shopping
+assistant and catalog auditor for a Shopify store: it answers from the live catalog, pages, and
+policies, recommends products, hands the shopper a verified checkout link, and audits the whole
+catalog for the merchant in one call. It is read-only by construction: it uses a Storefront API
+token, which can only see what the public storefront already shows.
 
 ```
 Claude Desktop / any MCP client ──stdio──► mcp-store-tools ──HTTPS──► Shopify Storefront API
-                                              6 read-only tools          (public token)
+                                             11 read-only tools          (public token)
 ```
 
 ![mcp-store-tools answering catalog and policy questions from Shopify's sample store](docs/demo.svg)
 
-Ask your agent "what's your cheapest rain jacket in medium?", "can I return sale items?", or
-"audit our catalog for listing problems" and it answers from the live store, with links.
+Ask your agent "what's your cheapest rain jacket in medium?", "what goes with it?", "do you ship
+to Germany?", "what size should I get?", "send me a link to buy two", or "audit our catalog for
+listing problems" and it answers from the live store, with links.
+
+What makes it different:
+
+- **Cart links that cannot be wrong.** `build_cart_link` checks every variant belongs to the
+  product and is in stock before returning a Shopify cart permalink, so a model cannot send a
+  shopper to a guessed or sold-out item. Nothing is written to the store.
+- **A whole-catalog audit in one tool call.** `audit_catalog` walks up to 5,000 products in the
+  server and returns counts, percentages, examples, and the top three fixes, instead of the
+  model paging through the catalog and burning tokens.
+- **Search that does not miss.** Price and stock filters are enforced on every result, and when
+  Shopify's search index comes back empty (common on new stores) it falls back to keyword
+  matching for products and pages.
+- **Safe with untrusted store text.** HTML is stripped, every field is capped, and each tool
+  tells the model that store content is data, not instructions.
 
 ## Try it in 30 seconds
 
@@ -43,6 +59,11 @@ Then ask Claude Code: "What's the cheapest thing in the store, and what's the re
 | `browse_products` | `collection`, `sort`, `limit` (1 to 50), `cursor` | one sorted page of products and `next_cursor` |
 | `list_policies` | none | which policies the store publishes, with URLs |
 | `get_policy` | `kind`: refund, shipping, privacy, terms, subscription | the policy as plain text |
+| `get_recommendations` | `handle`, `kind` (`similar` or `goes_with`), `limit` | Shopify's related or complementary products |
+| `get_store_info` | none | name, website, currency, ships-to countries, markets, languages, card brands, wallets |
+| `search_pages` | `query`, `limit` | content pages (size guide, FAQ, contact) as plain text with URLs |
+| `build_cart_link` | `items`: `handle`, `variant_id`, `quantity` | a verified cart permalink, line prices, and subtotal |
+| `audit_catalog` | `max_products` (up to 5,000), `examples_per_check` | listing-quality report: counts, percentages, examples, top issues |
 
 Every tool carries the MCP `readOnlyHint`, and failures come back as tool errors the model can
 relay ("the store is busy, try again shortly"), never stack traces or the token.
@@ -55,9 +76,10 @@ Clients that show MCP prompts (Claude Desktop, VS Code, Cursor) get three ready-
 
 ## Setup
 
-1. In Shopify admin, open **Settings > Apps and sales channels > Develop apps**, create an app,
-   and enable the Storefront API with `unauthenticated_read_product_listings` and
-   `unauthenticated_read_content`. Install it and copy the **Storefront API access token**.
+1. Install Shopify's free [Headless](https://apps.shopify.com/headless) sales channel on the
+   store, open **Headless > Create storefront > Storefront API**, and copy the **public access
+   token**. Its default permissions include product listings and content. (A trial store's
+   storefront stays locked until a plan is chosen; a development store works.)
 2. Install the server: `uv tool install git+https://github.com/thealirazadev/mcp-store-tools`
    (or run it without installing via `uvx --from git+https://github.com/thealirazadev/mcp-store-tools mcp-store-tools`).
 
