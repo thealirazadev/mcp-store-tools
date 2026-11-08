@@ -2,38 +2,30 @@
 
 A listing-quality report for the merchant, built only from what shoppers can see.
 
-## 1. Collect
+## 1. Run it
 
-1. `list_collections` and note each handle and title.
-2. Walk every product: `browse_products(sort="title", limit=50)`, then pass `next_cursor` back
-   as `cursor` with the same sort until it is `null`. Stop after 20 pages (1,000 products) and
-   ask the user before continuing; large catalogs are slow and use many tokens.
-3. To learn which products sit in no collection, page through each collection the same way and
-   compare handles. Skip this step when there are more than 10 collections, unless the user
-   asks for it.
+Call `audit_catalog`. It walks up to `max_products` published products (default 1,000) in the
+server and returns, per check, a `label`, `count`, `percent`, and up to `examples_per_check`
+products with links, plus `top_issues` and a `scope` note. If `truncated` is true, say how many
+products were checked and offer to run it again with a higher `max_products` (up to 5,000).
 
-## 2. Check each product
-
-| Check | Flag when |
+| Check | Flags a product when |
 | --- | --- |
-| Description | empty, or under 100 characters |
-| Product type | empty |
-| Vendor | empty |
-| Tags | none |
-| Online store | `url` is empty (published to other channels but not the online store) |
-| Availability | `available` is false (fully sold out) |
-| Price | a range where the top price is more than 3x the bottom (check for a typo variant) |
-| Title | ALL CAPS, longer than 70 characters, or duplicated by another product |
+| `short_description` | the description is empty or under 100 characters |
+| `no_image` | it has no image |
+| `no_product_type`, `no_vendor`, `no_tags` | that field is empty |
+| `not_on_online_store` | it has no product URL (published to other channels only) |
+| `sold_out` | no variant is available |
+| `wide_price_range` | the highest variant price is over 3x the lowest (check for a typo) |
+| `title_all_caps`, `title_too_long` | the title is in ALL CAPS or over 70 characters |
+| `duplicate_title` | another product has the same title |
+
+## 2. Report
+
+Start with a summary table of every check with a count above zero: label, count, percent.
+Then list the example products per check, worst first, with title and link. End with the three
+fixes from `top_issues` that would help the most products, in plain words, and the `scope` note
+so the merchant knows the audit cannot see drafts, inventory counts, SEO fields, or sales.
 
 Use `get_product` only for products you are about to recommend fixing in detail (for example to
-name the sold-out variants); calling it for every product is slow.
-
-## 3. Report
-
-Start with a summary table: total products, and the count and percentage failing each check.
-Then list the products for each failing check, worst first, with title and link, capped at 25
-per check (state how many more there are). End with the three fixes that would help the most
-products, in plain words.
-
-Report only what the data shows. The Storefront API cannot see drafts, inventory counts, SEO
-fields, images, or sales; say this once at the end so the merchant knows the audit's scope.
+name the sold-out variants).

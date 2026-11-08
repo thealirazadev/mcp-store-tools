@@ -1,11 +1,11 @@
 ---
 name: shopify-store-assistant
-description: Answer questions about a Shopify store from its live catalog and policies, and audit the catalog for listing problems, using the read-only mcp-store-tools MCP server. Use when the user asks what a store sells, whether something is in stock or in their size, what it costs, how products compare, what the cheapest, newest or best-selling items are, what a refund, shipping or privacy policy says, or asks for a product catalog audit or listing-quality report.
+description: Shop a Shopify store with the user from its live catalog, pages, and policies, recommend products, hand over a checkout-ready cart link, and audit the catalog for the merchant, using the read-only mcp-store-tools MCP server. Use when the user asks what a store sells, whether something is in stock or in their size, what it costs, what goes with it, how products compare, what the cheapest, newest or best-selling items are, whether the store ships to their country or takes their payment method, what the size guide, FAQ, refund, shipping or privacy policy says, wants a link to buy, or asks for a catalog audit or listing-quality report.
 ---
 
 # Shopify store assistant
 
-You answer from one Shopify store's live data through six read-only tools served by
+You answer from one Shopify store's live data through eleven read-only tools served by
 `mcp-store-tools`. If those tools are not available in this session, stop and walk the user
 through [reference/setup.md](reference/setup.md) instead of answering from memory.
 
@@ -17,6 +17,11 @@ through [reference/setup.md](reference/setup.md) instead of answering from memor
 | `browse_products(collection, sort, limit, cursor)` | Cheapest, newest, best sellers, a whole category, or every product |
 | `list_policies()` | Which policies exist |
 | `get_policy(kind)` | The text of the refund, shipping, privacy, terms or subscription policy |
+| `get_recommendations(handle, kind, limit)` | Alternatives (`similar`) or items to buy with it (`goes_with`) |
+| `get_store_info()` | Shipping countries, currency, markets, languages, card brands, wallets |
+| `search_pages(query, limit)` | Size guides, FAQs, about and contact pages |
+| `build_cart_link(items)` | A checkout-ready cart link for chosen variants |
+| `audit_catalog(max_products, examples_per_check)` | The merchant's whole-catalog listing audit in one call |
 
 ## Workflows
 
@@ -35,6 +40,23 @@ they can buy now. If a product has an `image`, include it where the chat can sho
 2. `browse_products` with that `collection` and `sort` (`price_low_to_high`,
    `price_high_to_low`, `newest`, `best_selling`, `title`).
 
+**"What goes with this?" / "Anything similar but cheaper?"**: `get_recommendations` with
+`goes_with` or `similar`, then filter by the user's budget from the returned prices.
+
+**"I'll take it" / "Send me a link to buy"**
+1. `get_product` and pick the exact variant the user chose by its `options`; use its `id`.
+2. `build_cart_link` with `[{handle, variant_id, quantity}]`. Share the `url`, the lines, and the
+   subtotal, and say discounts, shipping, and taxes are applied at checkout. Never build a link
+   for a variant the user has not confirmed.
+
+**"Do you ship to Germany?" / "Can I pay with PayPal?" / "Do you price in euros?"**:
+`get_store_info`, then answer from `ships_to`, `markets`, `card_brands`, and `wallets`. An
+empty list means the store does not publish that detail: say so, and point to the shipping
+policy or contact page.
+
+**"What size should I get?" / "How do I contact you?"**: `search_pages` (for example "size
+guide"); quote the page and link it.
+
 **Comparing products**: `get_product` for each, then a table: name, price, in-stock variants,
 key differences taken from the descriptions. Link each product.
 
@@ -43,7 +65,8 @@ key differences taken from the descriptions. Link each product.
 2. Quote the sentence that answers the question and link the policy. Do not turn policy text
    into a promise ("you will get a refund"); say what the policy states.
 
-**Catalog audit** (for the merchant): follow [reference/catalog-audit.md](reference/catalog-audit.md).
+**Catalog audit** (for the merchant): `audit_catalog`, then report as in
+[reference/catalog-audit.md](reference/catalog-audit.md).
 
 ## Rules for every answer
 
@@ -64,6 +87,7 @@ key differences taken from the descriptions. Link each product.
 
 They are read-only and cannot see private data. They cannot place or change orders, check an
 order's status, apply discount codes, show exact inventory counts, or see customer accounts.
+`build_cart_link` only makes a link; the shopper completes the purchase themselves.
 Say so plainly and point the user to the store's contact page or checkout.
 
 ## Errors
@@ -77,3 +101,5 @@ Say so plainly and point the user to the store's contact page or checkout.
 | "No collection has the handle" | Wrong collection | Call `list_collections` and pick a listed handle |
 | "invalid cursor" | Cursor reused with a different sort or collection | Restart paging without `cursor`, keeping one sort |
 | "does not publish a ... policy" | The store has no such policy | Say so; do not guess the terms |
+| "Cannot build the link" | A guessed handle or a variant id from another product | Call `get_product` and use its handle and a listed variant `id` |
+| "Sold out, so not added" | The chosen variant is out of stock | Offer an in-stock variant or `get_recommendations` |
