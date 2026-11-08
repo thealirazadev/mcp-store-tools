@@ -1,0 +1,73 @@
+[
+  {
+    "store": "mock",
+    "question": "Do you have a t-shirt in green, size Medium? How much is it?",
+    "expect_tools": [
+      "search_products|get_product"
+    ]
+  },
+  {
+    "store": "mock",
+    "question": "What's the cheapest thing in your store?",
+    "expect_tools": [
+      "browse_products|search_products"
+    ]
+  },
+  {
+    "store": "mock",
+    "question": "What goes well with the men's t-shirt?",
+    "expect_tools": [
+      "get_recommendations"
+    ]
+  },
+  {
+    "store": "mock",
+    "question": "I'll take 2 of the men's t-shirt in small, green. Send me a link to buy them.",
+    "expect_tools": [
+      "search_products|get_product",
+      "build_cart_link"
+    ]
+  },
+  {
+    "store": "mock",
+    "question": "Can I return something I bought? How long do I have?",
+    "expect_tools": [
+      "get_policy"
+    ]
+  },
+  {
+    "store": "mock",
+    "question": "Do you ship to Germany, and can I pay with PayPal?",
+    "expect_tools": [
+      "get_store_info"
+    ]
+  },
+  {
+    "store": "mock",
+    "question": "Compare the hoodie and the half zip for me.",
+    "expect_tools": [
+      "compare_products|get_product"
+    ]
+  },
+  {
+    "store": "dev",
+    "question": "What's on sale right now?",
+    "expect_tools": [
+      "find_deals"
+    ]
+  },
+  {
+    "store": "dev",
+    "question": "Is The Complete Snowboard in stock in the Ice colour? How many are left?",
+    "expect_tools": [
+      "get_product"
+    ]
+  },
+  {
+    "store": "dev",
+    "question": "I run this store. Audit our catalog for listing problems and tell me the top fixes.",
+    "expect_tools": [
+      "audit_catalog"
+    ]
+  }
+]
