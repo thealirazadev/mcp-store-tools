@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 - 2026-11-09
+
+- `build_cart_link`: a verified Shopify cart permalink for chosen variants (each checked to
+  belong to its product and be in stock), with line prices and subtotal. Read-only.
+- `get_recommendations`: Shopify's similar or goes-with products.
+- `get_store_info`: shipping countries, currency, markets, languages, card brands, wallets.
+- `search_pages`: size guides, FAQs, and other content pages, with a word-matching fallback when
+  the search index is empty.
+- `audit_catalog`: the merchant's whole-catalog listing audit (11 checks) in one call; the audit
+  prompt now uses it.
+- `get_product` variants include their `id`.
+- Setup now uses the Headless sales channel (Develop apps was replaced by the Dev Dashboard).
+
 ## 0.4.3 - 2026-11-09
 
 - `search_products` falls back to the keyword product query when Storefront search returns
