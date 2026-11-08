@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1 - 2026-11-09
 
 - Ctrl+C stops the server on the first press with exit code 130, without tracebacks.
 
