@@ -35,8 +35,8 @@ Then ask Claude Code: "What's the cheapest thing in the store, and what's the re
 
 | Tool | Input | Returns |
 | --- | --- | --- |
-| `search_products` | `query`, `limit` (1 to 20, default 5) | title, handle, price range, availability, URL |
-| `get_product` | `handle` | the product plus each variant's price and availability |
+| `search_products` | `query`, `limit` (1 to 20), optional `min_price`, `max_price`, `in_stock_only` | title, handle, price range, availability, image, URL |
+| `get_product` | `handle` | the product plus each variant's options (Size, Color), price, and availability |
 | `list_collections` | none | the store's collections (categories) with handles |
 | `browse_products` | `collection`, `sort`, `limit` (1 to 50), `cursor` | one sorted page of products and `next_cursor` |
 | `list_policies` | none | which policies the store publishes, with URLs |
@@ -44,6 +44,12 @@ Then ask Claude Code: "What's the cheapest thing in the store, and what's the re
 
 Every tool carries the MCP `readOnlyHint`, and failures come back as tool errors the model can
 relay ("the store is busy, try again shortly"), never stack traces or the token.
+
+## Prompts
+
+Clients that show MCP prompts (Claude Desktop, VS Code, Cursor) get three ready-made workflows:
+**Audit the catalog** (listing problems report for the merchant), **Compare products**, and
+**Answer a policy question**.
 
 ## Setup
 
@@ -108,7 +114,9 @@ docker run -p 8000:8000 -e SHOPIFY_STORE_DOMAIN=your-store.myshopify.com \
 claude mcp add --transport http my-store http://localhost:8000/mcp
 ```
 
-HTTP mode has no authentication of its own; read [SECURITY.md](SECURITY.md) before exposing it.
+Set `MCP_AUTH_TOKEN` to require `Authorization: Bearer <token>` on every request (add
+`--header "Authorization: Bearer <token>"` to `claude mcp add`). Read [SECURITY.md](SECURITY.md)
+before exposing the server beyond localhost.
 
 ## Agent skill
 
