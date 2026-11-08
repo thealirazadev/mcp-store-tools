@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 - 2026-11-09
+
+- Option search results carry stock counts (`quantity_available`) like `get_product`.
+- Option matching accepts common size abbreviations ("S" for "Small", "XL" for "X-Large").
+- `evals/`: an agent evaluation that runs real shopper and merchant questions through Claude
+  Code; it found both issues above. 10/10 cases pass.
+- CI runs on macOS and Windows; a throttled 5,000-product catalog test; live tests read
+  resources and prompts.
+
 ## 0.7.0 - 2026-11-09
 
 - Variants carry `quantity_available` when the token has the inventory scope (detected
