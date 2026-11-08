@@ -1,3 +1,4 @@
+import copy
 from decimal import Decimal
 from typing import Any
 
@@ -436,3 +437,35 @@ def test_other_errors_on_the_stock_query_are_not_swallowed() -> None:
     store = Storefront(CONFIG, transport=fakes.transport(respond))
     with pytest.raises(StorefrontError, match="Throttled"):
         store.get_product("trail-runner")
+
+
+def test_size_abbreviations_match_store_spellings() -> None:
+    from mcp_store_tools.storefront import _has_options
+
+    def variant(size: str) -> dict[str, Any]:
+        return {"selectedOptions": [{"name": "Size", "value": size}]}
+
+    assert _has_options(variant("Small"), {"size": "S"})
+    assert _has_options(variant("X-Large"), {"Size": "XL"})
+    assert _has_options(variant("XX-Large"), {"Size": "2XL"})
+    assert _has_options(variant("Medium"), {"SIZE": "med"})
+    assert not _has_options(variant("Small"), {"Size": "M"})
+    assert not _has_options(variant("US 9"), {"Size": "S"})
+
+
+def test_option_search_carries_stock_counts_when_allowed() -> None:
+    calls: list[dict[str, Any]] = []
+
+    def respond(payload: dict[str, Any]) -> dict[str, Any]:
+        body = copy.deepcopy(fakes.respond(payload))  # never mutate the shared fixtures
+        if "quantityAvailable" in payload["query"] and "search" in body.get("data", {}):
+            for node in body["data"]["search"]["nodes"]:
+                for v in node.get("variants", {}).get("nodes", []):
+                    v["quantityAvailable"] = 4
+        return body
+
+    store = Storefront(CONFIG, transport=fakes.transport(respond, calls=calls))
+    [found] = store.search_products("shoe", 5, options={"Size": "us 9"})
+
+    assert "quantityAvailable" in calls[0]["query"]
+    assert found["matching_variants"][0]["quantity_available"] == 4

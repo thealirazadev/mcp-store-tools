@@ -92,12 +92,35 @@ query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
 }}
 """
 
-# Same query plus stock counts, used while the token has unauthenticated_read_product_inventory.
-PRODUCT_INVENTORY_QUERY = PRODUCT_QUERY.replace(
-    "compareAtPrice { amount currencyCode }",
-    "compareAtPrice { amount currencyCode } quantityAvailable",
-)
-assert PRODUCT_INVENTORY_QUERY != PRODUCT_QUERY
+
+def _with_stock(document: str, anchor: str) -> str:
+    """The same query plus stock counts (needs unauthenticated_read_product_inventory)."""
+    stocked = document.replace(anchor, f"{anchor} quantityAvailable")
+    assert stocked != document
+    return stocked
+
+
+PRODUCT_INVENTORY_QUERY = _with_stock(PRODUCT_QUERY, "compareAtPrice { amount currencyCode }")
+_OPTION_ANCHOR = "selectedOptions { name value }"
+OPTION_SEARCH_STOCK_QUERY = _with_stock(OPTION_SEARCH_QUERY, _OPTION_ANCHOR)
+OPTION_KEYWORD_STOCK_QUERY = _with_stock(OPTION_KEYWORD_QUERY, _OPTION_ANCHOR)
+
+# Shoppers and models say "S" or "XL"; stores write "Small" or "X-Large".
+_SIZE_ALIASES = {
+    "xs": "xsmall",
+    "extrasmall": "xsmall",
+    "s": "small",
+    "sm": "small",
+    "m": "medium",
+    "med": "medium",
+    "l": "large",
+    "lg": "large",
+    "xl": "xlarge",
+    "extralarge": "xlarge",
+    "xxl": "xxlarge",
+    "2xl": "xxlarge",
+    "2xlarge": "xxlarge",
+}
 
 _PAGE = f"nodes {{ {_PRODUCT_FIELDS} }} pageInfo {{ hasNextPage endCursor }}"
 _PAGE_ARGS = "first: $first, after: $after, sortKey: $sortKey, reverse: $reverse"
@@ -304,6 +327,22 @@ class Storefront:
             return data
         raise StorefrontError("The store is busy. Try again shortly.")
 
+    def _query_stock(
+        self, with_stock: str, without: str, variables: dict[str, Any], country: str | None
+    ) -> dict[str, Any]:
+        """Ask for stock counts while the token may read them; on the first refusal, remember
+        and use the plain query from then on."""
+        if self._inventory is not False:
+            try:
+                data = self.query(with_stock, variables, country)
+                self._inventory = True
+                return data
+            except StorefrontError as exc:
+                if "quantityAvailable" not in str(exc):
+                    raise
+                self._inventory = False
+        return self.query(without, variables, country)
+
     def _cached(self, key: str, load: Callable[[], Any]) -> Any:
         hit = self._cache.get(key)
         if hit and self._clock() - hit[0] < CACHE_SECONDS:
@@ -338,19 +377,22 @@ class Storefront:
             filters.append({"price": {k: float(v) for k, v in price.items() if v is not None}})
         if in_stock_only:
             filters.append({"available": True})
-        search, keyword = (
-            (OPTION_SEARCH_QUERY, OPTION_KEYWORD_QUERY)
-            if options
-            else (
-                SEARCH_QUERY,
-                KEYWORD_QUERY,
-            )
-        )
         variables = {"query": query, "first": limit, "filters": filters or None}
-        nodes = [n for n in self.query(search, variables, country)["search"]["nodes"] if n]
-        if not nodes:
-            fallback = {"query": query, "first": limit}
-            nodes = self.query(keyword, fallback, country)["products"]["nodes"]
+        fallback = {"query": query, "first": limit}
+        if options:
+            found = self._query_stock(
+                OPTION_SEARCH_STOCK_QUERY, OPTION_SEARCH_QUERY, variables, country
+            )
+            nodes = [n for n in found["search"]["nodes"] if n]
+            if not nodes:
+                nodes = self._query_stock(
+                    OPTION_KEYWORD_STOCK_QUERY, OPTION_KEYWORD_QUERY, fallback, country
+                )["products"]["nodes"]
+        else:
+            searched = self.query(SEARCH_QUERY, variables, country)["search"]["nodes"]
+            nodes = [n for n in searched if n]
+            if not nodes:
+                nodes = self.query(KEYWORD_QUERY, fallback, country)["products"]["nodes"]
 
         # Apply the filters again here: a store whose search ignores a filter must not make
         # the model quote a product outside the range the shopper asked for.
@@ -382,18 +424,10 @@ class Storefront:
         return results
 
     def get_product(self, handle: str, country: str | None = None) -> dict[str, Any] | None:
-        variables = {"handle": handle}
-        node = None
-        if self._inventory is not False:
-            try:
-                node = self.query(PRODUCT_INVENTORY_QUERY, variables, country).get("product")
-                self._inventory = True
-            except StorefrontError as exc:
-                if "quantityAvailable" not in str(exc):
-                    raise
-                self._inventory = False  # the token lacks the inventory scope; stop asking
-        if self._inventory is False:
-            node = self.query(PRODUCT_QUERY, variables, country).get("product")
+        data = self._query_stock(
+            PRODUCT_INVENTORY_QUERY, PRODUCT_QUERY, {"handle": handle}, country
+        )
+        node = data.get("product")
         if node is None:
             return None
         product = _product(node)
@@ -668,9 +702,17 @@ class Storefront:
         return {"products": rows, "differs_in": differs}
 
 
+def _option_key(text: str) -> str:
+    key = re.sub(r"[\s\-_.]", "", text.lower())
+    return _SIZE_ALIASES.get(key, key)
+
+
 def _has_options(variant: dict[str, Any], wanted: dict[str, str]) -> bool:
-    have = {o["name"].lower(): o["value"].lower() for o in variant.get("selectedOptions") or []}
-    return all(have.get(name.lower()) == value.lower() for name, value in wanted.items())
+    have = {
+        _option_key(o["name"]): _option_key(o["value"])
+        for o in variant.get("selectedOptions") or []
+    }
+    return all(have.get(_option_key(name)) == _option_key(value) for name, value in wanted.items())
 
 
 def _variant(v: dict[str, Any]) -> dict[str, Any]:
