@@ -1,6 +1,7 @@
 """Drive the real MCP server in-process, the way a client such as Claude Desktop sees it."""
 
 import json
+import re
 from typing import Any
 
 import httpx
@@ -166,3 +167,23 @@ async def test_search_rejects_an_inverted_price_range() -> None:
             "search_products", {"query": "shoe", "min_price": 50, "max_price": 10}
         )
     assert result.is_error and "min_price" in text(result)
+
+
+async def test_prompts_are_listed_and_name_only_real_tools() -> None:
+    async with client() as c:
+        prompts = {p.name for p in (await c.list_prompts()).prompts}
+        tools = {t.name for t in (await c.list_tools()).tools}
+        audit = await c.get_prompt("audit_catalog")
+        compare = await c.get_prompt("compare_products", {"products": "Trail Runner, Summit Boot"})
+
+    assert prompts == {"audit_catalog", "compare_products", "policy_question"}
+    texts = []
+    for result in (audit, compare):
+        body = result.messages[0].content
+        assert isinstance(body, TextContent)
+        texts.append(body.text)
+        # Every snake_case word followed by "(" or matching a tool must be a served tool.
+        named = set(re.findall(r"\b([a-z]+_[a-z_]+)\(", body.text))
+        named |= {w for w in re.findall(r"\b[a-z]+_[a-z]+\b", body.text) if w in tools}
+        assert named and named <= tools
+    assert "Summit Boot" in texts[1]
