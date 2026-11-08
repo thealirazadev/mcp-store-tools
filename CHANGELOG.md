@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 - 2026-11-08
+
+- `search_products` filters by `min_price`, `max_price`, and `in_stock_only`, using Shopify's
+  storefront `search` API; results are re-checked against the filters.
+- Products include their `image`; variants include their `options` (Size, Color, ...).
+- MCP prompts: audit the catalog, compare products, answer a policy question.
+- `MCP_AUTH_TOKEN` requires a bearer token on every HTTP request.
+- Test coverage is measured in CI and must stay at or above 95%.
+
 ## 0.3.0 - 2026-11-08
 
 - Streamable HTTP transport (`--transport http`, `--host`, `--port`) and a Dockerfile for hosting.

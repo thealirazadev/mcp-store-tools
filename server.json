@@ -2,20 +2,22 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.thealirazadev/mcp-store-tools",
   "title": "Shopify Store Tools",
-  "description": "Read-only Shopify catalog, collections, and policies for AI agents. Try it with --demo.",
+  "description": "Read-only Shopify catalog search, filters, collections, and policies for AI agents.",
   "repository": {
     "url": "https://github.com/thealirazadev/mcp-store-tools",
     "source": "github"
   },
   "websiteUrl": "https://github.com/thealirazadev/mcp-store-tools",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "mcp-store-tools",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "runtimeHint": "uvx",
-      "transport": { "type": "stdio" },
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
         {
           "name": "SHOPIFY_STORE_DOMAIN",
