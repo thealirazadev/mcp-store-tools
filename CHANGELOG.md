@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 - 2026-11-09
+
+- Shopify's reason for a 4xx response is passed to the model (for example "Online Store channel
+  is locked" for a store that has not opened yet) instead of a bare status code. Found by
+  testing against a real trial store.
+
 ## 0.4.1 - 2026-11-09
 
 - Ctrl+C stops the server on the first press with exit code 130, without tracebacks.
