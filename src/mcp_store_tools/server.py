@@ -5,6 +5,7 @@ Configure with SHOPIFY_STORE_DOMAIN and SHOPIFY_STOREFRONT_TOKEN (see README), t
 """
 
 import argparse
+import logging
 import os
 import re
 import sys
@@ -249,6 +250,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--version", action="version", version=version("mcp-store-tools"))
     args = parser.parse_args(argv)
+    # httpx logs every request at INFO; MCP clients surface server stderr in their logs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     config = Config(DEMO_SHOP, token="") if args.demo else config_from_env()
     server = build_server(Storefront(config))
     if args.transport == "http":
