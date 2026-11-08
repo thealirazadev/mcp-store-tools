@@ -142,3 +142,17 @@ def test_country_and_language_are_sent_with_every_store_query() -> None:
     for call in calls:
         assert "@inContext(country: $country, language: $language)" in call["query"]
         assert (call["variables"]["country"], call["variables"]["language"]) == ("GB", "EN")
+
+
+def test_policies_and_collections_are_cached_but_products_are_not() -> None:
+    calls: list[dict[str, Any]] = []
+    now = [0.0]
+    store = Storefront(CONFIG, transport=fakes.transport(calls=calls), clock=lambda: now[0])
+
+    store.policies(), store.policies(), store.collections(), store.collections()
+    store.search_products("shoe", 1), store.search_products("shoe", 1)
+    assert len(calls) == 4
+
+    now[0] = 301.0
+    store.policies()
+    assert len(calls) == 5

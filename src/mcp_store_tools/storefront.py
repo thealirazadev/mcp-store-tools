@@ -21,6 +21,8 @@ RETRY_STATUS = frozenset({429, 430, 500, 502, 503, 504})
 MAX_RETRY_WAIT = 10.0
 # Enough for every size/colour grid; beyond this the answer is flagged, not silently cut.
 MAX_VARIANTS = 100
+# Policies and collections rarely change; products are never cached so stock stays live.
+CACHE_SECONDS = 300.0
 
 POLICY_FIELDS = {
     "refund": "refundPolicy",
@@ -160,7 +162,10 @@ class Storefront:
         max_retries: int = 3,
         backoff: float = 0.5,
         sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        self._clock = clock
+        self._cache: dict[str, tuple[float, Any]] = {}
         self._config = config
         self._max_retries = max_retries
         self._backoff = backoff
@@ -205,6 +210,14 @@ class Storefront:
             return data
         raise StorefrontError("The store is busy. Try again shortly.")
 
+    def _cached(self, key: str, load: Callable[[], Any]) -> Any:
+        hit = self._cache.get(key)
+        if hit and self._clock() - hit[0] < CACHE_SECONDS:
+            return hit[1]
+        value = load()
+        self._cache[key] = (self._clock(), value)
+        return value
+
     def _wait(self, attempt: int, retry_after: str | None) -> None:
         """Honour the server's Retry-After seconds when given, else exponential backoff."""
         try:
@@ -234,6 +247,10 @@ class Storefront:
         return product
 
     def collections(self) -> list[dict[str, str]]:
+        result: list[dict[str, str]] = self._cached("collections", self._load_collections)
+        return result
+
+    def _load_collections(self) -> list[dict[str, str]]:
         nodes = self.query(COLLECTIONS_QUERY)["collections"]["nodes"]
         return [
             {
@@ -266,6 +283,10 @@ class Storefront:
         }
 
     def policies(self) -> dict[str, dict[str, str]]:
+        result: dict[str, dict[str, str]] = self._cached("policies", self._load_policies)
+        return result
+
+    def _load_policies(self) -> dict[str, dict[str, str]]:
         shop = self.query(POLICIES_QUERY)["shop"]
         found = {}
         for kind, field in POLICY_FIELDS.items():
