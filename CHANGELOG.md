@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - 2026-11-08
+
+- Streamable HTTP transport (`--transport http`, `--host`, `--port`) and a Dockerfile for hosting.
+- `SHOPIFY_COUNTRY` and `SHOPIFY_LANGUAGE`: local currency, prices, and translations.
+- Honour Shopify's `Retry-After` header (capped at 10 seconds).
+- `get_product` returns up to 100 variants (was 50) and flags more with `more_variants`.
+- Policies and collections are cached for five minutes; products stay live.
+- Default Storefront API version is now `2026-10`.
+- `serverInfo` reports the package version and website.
+- MCP Registry metadata (`server.json`), SECURITY.md, CONTRIBUTING.md, Docker build in CI.
+
 ## 0.2.0 - 2026-11-08
 
 - `list_collections` and `browse_products` tools: sorted (price, newest, best selling, title),
