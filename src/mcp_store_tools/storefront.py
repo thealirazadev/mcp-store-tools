@@ -35,6 +35,7 @@ POLICY_FIELDS = {
 
 _PRODUCT_FIELDS = """
   handle title description vendor productType tags onlineStoreUrl availableForSale
+  featuredImage { url altText }
   priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
 """
 
@@ -57,7 +58,9 @@ query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
   product(handle: $handle) {{
     {_PRODUCT_FIELDS}
     variants(first: {MAX_VARIANTS}) {{
-      nodes {{ title availableForSale price {{ amount currencyCode }} }}
+      nodes {{
+        title availableForSale price {{ amount currencyCode }} selectedOptions {{ name value }}
+      }}
       pageInfo {{ hasNextPage }}
     }}
   }}
@@ -270,6 +273,7 @@ class Storefront:
                 "title": v["title"],
                 "available": v["availableForSale"],
                 "price": _money(v["price"]),
+                "options": {o["name"]: o["value"] for o in v.get("selectedOptions") or []},
             }
             for v in node["variants"]["nodes"]
         ]
@@ -347,4 +351,5 @@ def _product(node: dict[str, Any]) -> dict[str, Any]:
         "price": price,
         "available": node["availableForSale"],
         "url": node.get("onlineStoreUrl") or "",
+        "image": (node.get("featuredImage") or {}).get("url") or "",
     }

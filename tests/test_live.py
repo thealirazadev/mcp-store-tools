@@ -30,7 +30,8 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
         capped = (await call("search_products", query="shirt", max_price=30))["result"]
         assert all(float(p["price"].split()[0]) <= 30 for p in capped)
         product = await call("get_product", handle=found[0]["handle"])
-        assert product["variants"]
+        assert product["variants"] and product["variants"][0]["options"]
+        assert product["image"].startswith("https://")
         handle = (await call("list_collections"))["result"][0]["handle"]
         cheap = await call("browse_products", collection=handle, sort="price_low_to_high", limit=2)
         assert cheap["products"]

@@ -15,6 +15,7 @@ PRODUCT = {
     "tags": ["running", "trail"],
     "onlineStoreUrl": "https://demo.example/products/trail-runner",
     "availableForSale": True,
+    "featuredImage": {"url": "https://cdn.example/trail-runner.jpg", "altText": None},
     "priceRange": {
         "minVariantPrice": {"amount": "89.0", "currencyCode": "USD"},
         "maxVariantPrice": {"amount": "99.0", "currencyCode": "USD"},
@@ -38,11 +39,13 @@ VARIANTS = {
             "title": "US 9",
             "availableForSale": True,
             "price": {"amount": "89.0", "currencyCode": "USD"},
+            "selectedOptions": [{"name": "Size", "value": "US 9"}],
         },
         {
             "title": "US 12",
             "availableForSale": False,
             "price": {"amount": "99.0", "currencyCode": "USD"},
+            "selectedOptions": [{"name": "Size", "value": "US 12"}],
         },
     ],
     "pageInfo": {"hasNextPage": False},

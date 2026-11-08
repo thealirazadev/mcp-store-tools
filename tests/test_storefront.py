@@ -52,7 +52,13 @@ def test_product_includes_variants_and_missing_is_none() -> None:
     product = store.get_product("trail-runner")
 
     assert product is not None
-    assert product["variants"][1] == {"title": "US 12", "available": False, "price": "99.0 USD"}
+    assert product["variants"][1] == {
+        "title": "US 12",
+        "available": False,
+        "price": "99.0 USD",
+        "options": {"Size": "US 12"},
+    }
+    assert product["image"] == "https://cdn.example/trail-runner.jpg"
     assert product["more_variants"] is False
     assert store.get_product("nope") is None
 
