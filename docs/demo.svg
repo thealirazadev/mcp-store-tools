@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="780" height="462" viewBox="0 0 780 462" role="img" aria-label="mcp-store-tools demo">
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="522" viewBox="0 0 780 522" role="img" aria-label="mcp-store-tools demo">
 <title>mcp-store-tools answering catalog and policy questions from a live Shopify store</title>
-<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#d4d4d8;white-space:pre}.call{fill:#67e8f9;font-weight:600}.prompt{fill:#a3e635}#cmd{animation:type 11.06s steps(30) infinite}@keyframes type{0%{width:0}14.47%{width:310px}100%{width:310px}}.l0{opacity:0;animation:l0 11.06s infinite}@keyframes l0{0%,17.99%{opacity:0}18.08%,97%{opacity:1}100%{opacity:0}}.l1{opacity:0;animation:l1 11.06s infinite}@keyframes l1{0%,19.62%{opacity:0}19.71%,97%{opacity:1}100%{opacity:0}}.l2{opacity:0;animation:l2 11.06s infinite}@keyframes l2{0%,21.25%{opacity:0}21.34%,97%{opacity:1}100%{opacity:0}}.l3{opacity:0;animation:l3 11.06s infinite}@keyframes l3{0%,22.88%{opacity:0}22.97%,97%{opacity:1}100%{opacity:0}}.l4{opacity:0;animation:l4 11.06s infinite}@keyframes l4{0%,24.50%{opacity:0}24.59%,97%{opacity:1}100%{opacity:0}}.l5{opacity:0;animation:l5 11.06s infinite}@keyframes l5{0%,26.13%{opacity:0}26.22%,97%{opacity:1}100%{opacity:0}}.l6{opacity:0;animation:l6 11.06s infinite}@keyframes l6{0%,27.76%{opacity:0}27.85%,97%{opacity:1}100%{opacity:0}}.l7{opacity:0;animation:l7 11.06s infinite}@keyframes l7{0%,29.39%{opacity:0}29.48%,97%{opacity:1}100%{opacity:0}}.l8{opacity:0;animation:l8 11.06s infinite}@keyframes l8{0%,31.01%{opacity:0}31.10%,97%{opacity:1}100%{opacity:0}}.l9{opacity:0;animation:l9 11.06s infinite}@keyframes l9{0%,32.64%{opacity:0}32.73%,97%{opacity:1}100%{opacity:0}}.l10{opacity:0;animation:l10 11.06s infinite}@keyframes l10{0%,34.27%{opacity:0}34.36%,97%{opacity:1}100%{opacity:0}}.l11{opacity:0;animation:l11 11.06s infinite}@keyframes l11{0%,35.90%{opacity:0}35.99%,97%{opacity:1}100%{opacity:0}}.l12{opacity:0;animation:l12 11.06s infinite}@keyframes l12{0%,37.52%{opacity:0}37.61%,97%{opacity:1}100%{opacity:0}}.l13{opacity:0;animation:l13 11.06s infinite}@keyframes l13{0%,39.15%{opacity:0}39.24%,97%{opacity:1}100%{opacity:0}}.l14{opacity:0;animation:l14 11.06s infinite}@keyframes l14{0%,40.78%{opacity:0}40.87%,97%{opacity:1}100%{opacity:0}}.l15{opacity:0;animation:l15 11.06s infinite}@keyframes l15{0%,42.41%{opacity:0}42.50%,97%{opacity:1}100%{opacity:0}}.l16{opacity:0;animation:l16 11.06s infinite}@keyframes l16{0%,44.03%{opacity:0}44.12%,97%{opacity:1}100%{opacity:0}}.l17{opacity:0;animation:l17 11.06s infinite}@keyframes l17{0%,45.66%{opacity:0}45.75%,97%{opacity:1}100%{opacity:0}}</style>
-<rect width="780" height="462" rx="10" fill="#18181b"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#d4d4d8;white-space:pre}.call{fill:#67e8f9;font-weight:600}.prompt{fill:#a3e635}#cmd{animation:type 11.60s steps(30) infinite}@keyframes type{0%{width:0}13.79%{width:310px}100%{width:310px}}.l0{opacity:0;animation:l0 11.60s infinite}@keyframes l0{0%,17.16%{opacity:0}17.24%,97%{opacity:1}100%{opacity:0}}.l1{opacity:0;animation:l1 11.60s infinite}@keyframes l1{0%,18.71%{opacity:0}18.79%,97%{opacity:1}100%{opacity:0}}.l2{opacity:0;animation:l2 11.60s infinite}@keyframes l2{0%,20.26%{opacity:0}20.34%,97%{opacity:1}100%{opacity:0}}.l3{opacity:0;animation:l3 11.60s infinite}@keyframes l3{0%,21.81%{opacity:0}21.90%,97%{opacity:1}100%{opacity:0}}.l4{opacity:0;animation:l4 11.60s infinite}@keyframes l4{0%,23.36%{opacity:0}23.45%,97%{opacity:1}100%{opacity:0}}.l5{opacity:0;animation:l5 11.60s infinite}@keyframes l5{0%,24.91%{opacity:0}25.00%,97%{opacity:1}100%{opacity:0}}.l6{opacity:0;animation:l6 11.60s infinite}@keyframes l6{0%,26.47%{opacity:0}26.55%,97%{opacity:1}100%{opacity:0}}.l7{opacity:0;animation:l7 11.60s infinite}@keyframes l7{0%,28.02%{opacity:0}28.10%,97%{opacity:1}100%{opacity:0}}.l8{opacity:0;animation:l8 11.60s infinite}@keyframes l8{0%,29.57%{opacity:0}29.66%,97%{opacity:1}100%{opacity:0}}.l9{opacity:0;animation:l9 11.60s infinite}@keyframes l9{0%,31.12%{opacity:0}31.21%,97%{opacity:1}100%{opacity:0}}.l10{opacity:0;animation:l10 11.60s infinite}@keyframes l10{0%,32.67%{opacity:0}32.76%,97%{opacity:1}100%{opacity:0}}.l11{opacity:0;animation:l11 11.60s infinite}@keyframes l11{0%,34.22%{opacity:0}34.31%,97%{opacity:1}100%{opacity:0}}.l12{opacity:0;animation:l12 11.60s infinite}@keyframes l12{0%,35.78%{opacity:0}35.86%,97%{opacity:1}100%{opacity:0}}.l13{opacity:0;animation:l13 11.60s infinite}@keyframes l13{0%,37.33%{opacity:0}37.41%,97%{opacity:1}100%{opacity:0}}.l14{opacity:0;animation:l14 11.60s infinite}@keyframes l14{0%,38.88%{opacity:0}38.97%,97%{opacity:1}100%{opacity:0}}.l15{opacity:0;animation:l15 11.60s infinite}@keyframes l15{0%,40.43%{opacity:0}40.52%,97%{opacity:1}100%{opacity:0}}.l16{opacity:0;animation:l16 11.60s infinite}@keyframes l16{0%,41.98%{opacity:0}42.07%,97%{opacity:1}100%{opacity:0}}.l17{opacity:0;animation:l17 11.60s infinite}@keyframes l17{0%,43.53%{opacity:0}43.62%,97%{opacity:1}100%{opacity:0}}.l18{opacity:0;animation:l18 11.60s infinite}@keyframes l18{0%,45.09%{opacity:0}45.17%,97%{opacity:1}100%{opacity:0}}.l19{opacity:0;animation:l19 11.60s infinite}@keyframes l19{0%,46.64%{opacity:0}46.72%,97%{opacity:1}100%{opacity:0}}.l20{opacity:0;animation:l20 11.60s infinite}@keyframes l20{0%,48.19%{opacity:0}48.28%,97%{opacity:1}100%{opacity:0}}</style>
+<rect width="780" height="522" rx="10" fill="#18181b"/>
 <circle cx="20" cy="18" r="6" fill="#f87171"/><circle cx="40" cy="18" r="6" fill="#fbbf24"/>
 <circle cx="60" cy="18" r="6" fill="#4ade80"/>
 <text x="390.0" y="22" text-anchor="middle" style="fill:#71717a;font-size:12px">mcp-store-tools --demo (Shopify sample store)</text>
@@ -13,16 +13,19 @@
 <text x="18" y="144" class="l3 ">  Workout Shirt          10.0 CAD     in stock</text>
 <text x="18" y="164" class="l4 "></text>
 <text x="18" y="184" class="l5 call">&gt; get_product(handle=&quot;men-t-shirt&quot;)</text>
-<text x="18" y="204" class="l6 ">  Size: Small, Color: Green    40.0 CAD   in stock</text>
-<text x="18" y="224" class="l7 ">  Size: Small, Color: Olive    40.0 CAD   in stock</text>
-<text x="18" y="244" class="l8 ">  Size: Small, Color: Ocean    40.0 CAD   in stock</text>
-<text x="18" y="264" class="l9 ">  Size: Small, Color: Purple   40.0 CAD   in stock</text>
-<text x="18" y="284" class="l10 "></text>
-<text x="18" y="304" class="l11 call">&gt; browse_products(sort=&quot;price_high_to_low&quot;, limit=3)</text>
-<text x="18" y="324" class="l12 ">  Gray Leather Sneakers  1000.0 CAD</text>
-<text x="18" y="344" class="l13 ">  Frontpack              200.0 CAD</text>
-<text x="18" y="364" class="l14 ">  High Top Sneakers      180.0 CAD</text>
-<text x="18" y="384" class="l15 "></text>
-<text x="18" y="404" class="l16 call">&gt; get_policy(kind=&quot;refund&quot;)</text>
-<text x="18" y="424" class="l17 ">  We have a 30-day return policy, which means you have 30 days after receiving...</text>
+<text x="18" y="204" class="l6 ">  Size: Small, Color: Green    40.0 CAD   id 43696932126742</text>
+<text x="18" y="224" class="l7 ">  Size: Small, Color: Olive    40.0 CAD   id 43695837839382</text>
+<text x="18" y="244" class="l8 ">  Size: Small, Color: Ocean    40.0 CAD   id 43696932159510</text>
+<text x="18" y="264" class="l9 "></text>
+<text x="18" y="284" class="l10 call">&gt; get_recommendations(handle=&quot;men-t-shirt&quot;, kind=&quot;goes_with&quot;, limit=3)</text>
+<text x="18" y="304" class="l11 ">  Hoodie                 90.0 CAD</text>
+<text x="18" y="324" class="l12 ">  Men&#x27;s Crewneck         120.0 CAD</text>
+<text x="18" y="344" class="l13 ">  Sweatpants             35.0 CAD to 42.0 CAD</text>
+<text x="18" y="364" class="l14 "></text>
+<text x="18" y="384" class="l15 call">&gt; build_cart_link(items=[{handle, variant_id: 43696932126742, quantity: 2}])</text>
+<text x="18" y="404" class="l16 ">  https://demostore.hydrogen.mock.shop/cart/43696932126742:2</text>
+<text x="18" y="424" class="l17 ">  subtotal 80.0 CAD (before shipping and taxes)</text>
+<text x="18" y="444" class="l18 "></text>
+<text x="18" y="464" class="l19 call">&gt; get_policy(kind=&quot;refund&quot;)</text>
+<text x="18" y="484" class="l20 ">  We have a 30-day return policy, which means you have 30 days after receiving...</text>
 </svg>
