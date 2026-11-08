@@ -160,7 +160,10 @@ results a client actually sees, and a skill test checks `SKILL.md` names exactly
 
 `MCP_STORE_TOOLS_LIVE=1 uv run pytest tests/test_live.py` starts the server in demo mode over
 stdio and over HTTP and calls the tools against the real Storefront API. CI runs it weekly, and
-builds the Docker image on every push. See [CONTRIBUTING.md](CONTRIBUTING.md).
+builds the Docker image on every push. With `SHOPIFY_STORE_DOMAIN` and
+`SHOPIFY_STOREFRONT_TOKEN` also set (a development store with test data), it additionally checks
+a real store and the wrong-token error; CI reads them from the `SHOPIFY_STORE_DOMAIN` variable and
+`SHOPIFY_STOREFRONT_TOKEN` secret. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The demo image is regenerated from real output with `uv run python scripts/render_demo.py`
 (it runs `examples/demo.py` against the sample store).
