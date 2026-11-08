@@ -134,3 +134,24 @@ Recommendations, store info (shipping countries, payment methods, markets), and 
 could not answer from products and policies alone. Each has a narrow schema and a description
 that says when to use it; the skill maps shopper questions to tools so the larger tool list does
 not make selection worse.
+
+## 19. Option matching happens on real variants
+
+Shopify's `variantOption` search filter is sent, but both test stores ignored it (the sample
+store returned shirts of every colour). When `options` are given, the search also fetches each
+result's variants and keeps only products with a variant whose options match (case-insensitive),
+returning those as `matching_variants`. Variants are fetched only for option searches, so plain
+searches stay cheap.
+
+## 20. Country is per call, not only per server
+
+`SHOPIFY_COUNTRY` sets a default market, but one server answers shoppers from many countries.
+Every product tool takes an optional `country`, passed through `@inContext`; on the test store
+the Canada market returned 9.50 where the default was 10.00. Cart links do not carry a country:
+Shopify's cart permalinks do not document one, so the shopper's market is set at checkout.
+
+## 21. Deals come from compare-at prices
+
+A product is on sale when its highest compare-at price is above its lowest price;
+`percent_off` is that gap ("up to N% off"). `find_deals` walks the catalog like the audit and
+ranks by discount, because the Storefront API cannot sort or filter by discount.
