@@ -155,3 +155,24 @@ Shopify's cart permalinks do not document one, so the shopper's market is set at
 A product is on sale when its highest compare-at price is above its lowest price;
 `percent_off` is that gap ("up to N% off"). `find_deals` walks the catalog like the audit and
 ranks by discount, because the Storefront API cannot sort or filter by discount.
+
+## 22. Stock counts are optional and never misleading
+
+`quantityAvailable` needs the `unauthenticated_read_product_inventory` scope. The client asks
+for it on the first product lookup; if Shopify denies that field, it remembers and stops asking,
+so tokens without the scope cost one extra request per process, not one per call. Shopify reports
+0 for an item that is still for sale when stock is not tracked (seen on the test store's
+"Inventory Not Tracked" snowboard), so a 0 on an available variant is reported as unknown.
+
+## 23. Resources mirror the slow-changing data
+
+Store info, collections, and policies are also MCP resources, so a client can attach them as
+context up front. They reuse the tools' cached loaders, so a resource read costs no more than the
+tool call.
+
+## 24. Hosted mode protects the store's quota
+
+A shared HTTP server spends one store's Storefront API quota for every caller. A per-client,
+one-minute window (default 120 requests, `MCP_RATE_LIMIT`) answers 429 with `Retry-After` before
+a request reaches Shopify. `/healthz` sits outside authentication and rate limiting so load
+balancers and Docker can probe it.
