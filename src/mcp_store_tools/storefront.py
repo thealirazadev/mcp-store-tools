@@ -14,6 +14,8 @@ from typing import Any
 import httpx
 
 MAX_TEXT = 2000
+# Shopify's public sample store: real Storefront API responses, no token needed.
+DEMO_SHOP = "mock.shop"
 RETRY_STATUS = frozenset({429, 430, 500, 502, 503, 504})
 
 POLICY_FIELDS = {
@@ -97,6 +99,8 @@ class Config:
 
     @property
     def endpoint(self) -> str:
+        if self.shop == DEMO_SHOP:
+            return "https://mock.shop/api"
         return f"https://{self.shop}/api/{self.api_version}/graphql.json"
 
 

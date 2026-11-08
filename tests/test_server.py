@@ -8,7 +8,7 @@ import pytest
 from mcp import Client
 from mcp_types import CallToolResult, TextContent
 
-from mcp_store_tools.server import build_server, config_from_env
+from mcp_store_tools.server import build_server, config_from_env, main
 from mcp_store_tools.storefront import Config, Storefront
 from tests import fakes
 
@@ -105,3 +105,13 @@ def test_config_rejects_values_that_are_not_store_domains(
     monkeypatch.setenv("SHOPIFY_STOREFRONT_TOKEN", "t")
     with pytest.raises(SystemExit, match="SHOPIFY_STORE_DOMAIN"):
         config_from_env()
+
+
+def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert capsys.readouterr().out.strip()[0].isdigit()
+
+
+def test_demo_store_uses_the_public_sample_endpoint() -> None:
+    assert Config("mock.shop", token="").endpoint == "https://mock.shop/api"
