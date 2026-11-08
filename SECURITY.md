@@ -23,3 +23,5 @@ Supported: the latest release. Older versions do not get fixes.
   `Authorization: Bearer <token>`; the comparison is constant-time. The server does not terminate
   TLS: when you expose it beyond localhost, put it behind a reverse proxy with HTTPS so the
   token is never sent in clear. The Docker image binds `0.0.0.0` inside the container.
+  Requests are rate limited per client address (`MCP_RATE_LIMIT` per minute, default 120);
+  behind a proxy, enable uvicorn's proxy headers so the limit applies to real clients.

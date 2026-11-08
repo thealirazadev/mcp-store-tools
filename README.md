@@ -37,6 +37,9 @@ What makes it different:
 - **Size and colour that are really in stock.** `search_products` with
   `options: {"Size": "M", "Color": "Black"}` checks real variants (many stores ignore Shopify's
   option filter) and returns the matching variants.
+- **"Only 3 left".** With the token's inventory permission, variants carry `quantity_available`;
+  without it the server detects the missing scope once and carries on. Items whose stock is not
+  tracked read as unknown, never a misleading "0 left".
 - **Deals and local prices.** `find_deals` ranks sale items by discount; every product tool takes
   a shopper `country`, so prices and availability follow that market (Shopify Markets).
 - **Search that does not miss.** Price and stock filters are enforced on every result, and when
@@ -75,6 +78,11 @@ Then ask Claude Code: "What's the cheapest thing in the store, and what's the re
 
 Every tool carries the MCP `readOnlyHint`, and failures come back as tool errors the model can
 relay ("the store is busy, try again shortly"), never stack traces or the token.
+
+## Resources
+
+The same read-only data as attachable context: `store://info`, `store://collections`, and
+`store://policies/{kind}` (refund, shipping, privacy, terms, subscription).
 
 ## Prompts
 
@@ -145,6 +153,11 @@ docker run -p 8000:8000 -e SHOPIFY_STORE_DOMAIN=your-store.myshopify.com \
   -e SHOPIFY_STOREFRONT_TOKEN=your-storefront-token mcp-store-tools
 claude mcp add --transport http my-store http://localhost:8000/mcp
 ```
+
+`GET /healthz` answers without authentication (the Docker image uses it as its health check).
+Each client address may make `MCP_RATE_LIMIT` requests per minute (default 120, `0` turns it
+off); beyond that the server answers 429 with `Retry-After`, protecting the store's Storefront
+API quota.
 
 Set `MCP_AUTH_TOKEN` to require `Authorization: Bearer <token>` on every request (add
 `--header "Authorization: Bearer <token>"` to `claude mcp add`). Read [SECURITY.md](SECURITY.md)
