@@ -69,6 +69,19 @@ args = ["--from", "git+https://github.com/thealirazadev/mcp-store-tools", "mcp-s
 env = { SHOPIFY_STORE_DOMAIN = "your-store.myshopify.com", SHOPIFY_STOREFRONT_TOKEN = "your-storefront-token" }
 ```
 
+## Optional settings
+
+Add these to `env` next to the two required values:
+
+- `SHOPIFY_COUNTRY`: ISO country code (`GB`, `DE`) for that market's currency and prices.
+- `SHOPIFY_LANGUAGE`: language code (`FR`, `PT_BR`) for translated product text.
+
+## Hosted (HTTP) instead of local
+
+If someone runs the server for you with `--transport http` or the Docker image, connect to its URL
+instead of starting it locally, for example in Claude Code:
+`claude mcp add --transport http my-store https://your-host/mcp`.
+
 ## Check it works
 
 Restart the agent and ask: "List the store's policies." You should see `list_policies` called.
