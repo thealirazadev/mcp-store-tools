@@ -1,6 +1,7 @@
 name: live
 
-# End-to-end over stdio against Shopify's public sample store (mock.shop). Kept out of the push
+# End-to-end over stdio against Shopify's public sample store (mock.shop) and, when configured,
+# a real development store. Kept out of the push
 # CI so an outage of a third-party demo store never blocks a merge.
 on:
   schedule:
@@ -22,3 +23,6 @@ jobs:
       - run: uv run pytest tests/test_live.py
         env:
           MCP_STORE_TOOLS_LIVE: "1"
+          # Optional real development store; its tests skip when these are not configured.
+          SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN }}
+          SHOPIFY_STOREFRONT_TOKEN: ${{ secrets.SHOPIFY_STOREFRONT_TOKEN }}
