@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 - 2026-11-09
+
+- Variants carry `quantity_available` when the token has the inventory scope (detected
+  automatically); untracked stock reads as unknown instead of 0.
+- MCP resources: `store://info`, `store://collections`, `store://policies/{kind}`.
+- HTTP mode: `GET /healthz` without authentication, and per-client rate limiting
+  (`MCP_RATE_LIMIT`, default 120 per minute) with 429 and `Retry-After`.
+- The Docker image has a health check; CI verifies it.
+
 ## 0.6.0 - 2026-11-09
 
 - `find_deals`: sale items ranked by discount, optionally per collection or minimum percent off.
