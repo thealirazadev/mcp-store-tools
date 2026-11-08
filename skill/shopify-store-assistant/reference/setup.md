@@ -80,7 +80,8 @@ Add these to `env` next to the two required values:
 
 If someone runs the server for you with `--transport http` or the Docker image, connect to its URL
 instead of starting it locally, for example in Claude Code:
-`claude mcp add --transport http my-store https://your-host/mcp`.
+`claude mcp add --transport http my-store https://your-host/mcp`. If the host set
+`MCP_AUTH_TOKEN`, add `--header "Authorization: Bearer <token>"`.
 
 ## Check it works
 

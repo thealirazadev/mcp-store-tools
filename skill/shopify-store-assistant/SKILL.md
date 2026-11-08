@@ -11,8 +11,8 @@ through [reference/setup.md](reference/setup.md) instead of answering from memor
 
 | Tool | Use it for |
 | --- | --- |
-| `search_products(query, limit)` | Finding products by words the user said |
-| `get_product(handle)` | Variants: sizes, colours, each one's price and stock |
+| `search_products(query, limit, min_price, max_price, in_stock_only)` | Finding products by words, a budget, or in stock only |
+| `get_product(handle)` | Variants: each one's options (Size, Color), price, and stock |
 | `list_collections()` | The store's categories and their handles |
 | `browse_products(collection, sort, limit, cursor)` | Cheapest, newest, best sellers, a whole category, or every product |
 | `list_policies()` | Which policies exist |
@@ -23,8 +23,12 @@ through [reference/setup.md](reference/setup.md) instead of answering from memor
 **"Do you have X?" / "Is it in my size?"**
 1. `search_products` with the user's words. If nothing matches, retry once with a broader or
    singular term ("running shoes" to "shoe").
-2. For the one or two best matches, `get_product` to read the variants. Availability and price
-   differ per variant: answer for the variant the user asked about.
+2. For the one or two best matches, `get_product` to read the variants. Match the user's size or
+   colour against each variant's `options`; availability and price differ per variant.
+
+**"Something under $50" / "only what's in stock"**: `search_products` with `max_price`
+(and `min_price`) in the store's currency, and `in_stock_only: true` when they only want what
+they can buy now. If a product has an `image`, include it where the chat can show images.
 
 **"What's the cheapest / newest / best-selling ...?" / "Show me your jackets"**
 1. If the user named a category, `list_collections` and pick the matching handle.
