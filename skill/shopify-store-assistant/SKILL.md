@@ -71,6 +71,7 @@ Say so plainly and point the user to the store's contact page or checkout.
 | Error says | Meaning | What to do |
 | --- | --- | --- |
 | "The store is busy" / "did not respond" | Shopify throttling or outage (already retried) | Try once more; if it fails again, tell the user to try shortly |
+| "Online Store channel is locked" | The store has not opened yet (trial or password-protected) | Tell the user the store's catalog is not public yet; nothing to retry |
 | "rejected the access token" | Setup problem | Point the user to [reference/setup.md](reference/setup.md) |
 | "No published product has the handle" | Wrong or unpublished handle | Search again with `search_products` |
 | "No collection has the handle" | Wrong collection | Call `list_collections` and pick a listed handle |
