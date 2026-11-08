@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 - 2026-11-09
+
+- `find_deals`: sale items ranked by discount, optionally per collection or minimum percent off.
+- `compare_products`: 2 to 5 products side by side with the fields that differ.
+- `search_products` takes `options` (size, colour) matched against real variants, returning
+  `matching_variants`.
+- Every product tool takes an optional shopper `country` for that market's prices and
+  availability.
+- Products show `compare_at_price`, `on_sale`, and `percent_off`; variants show
+  `compare_at_price`.
+- `search_pages` also searches blog articles.
+
 ## 0.5.0 - 2026-11-09
 
 - `build_cart_link`: a verified Shopify cart permalink for chosen variants (each checked to
