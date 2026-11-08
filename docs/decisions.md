@@ -109,3 +109,28 @@ Tested against a real development store, Storefront `search` returned 0 results 
 of a new store (or of a channel) can be empty. When `search` returns nothing, the client runs the
 `products` keyword query and applies the same price and stock checks to its results, so a
 shopper is never told a product does not exist because of indexing.
+
+## 16. Cart links, not carts
+
+Shoppers' last step is "I'll take it". `build_cart_link` returns a Shopify cart permalink
+(`/cart/<variant>:<qty>`) instead of creating a cart through the API, which would need a write
+scope and make the server more than read-only. Each item carries the product handle, and the
+server checks the variant belongs to that product and is in stock before building the link, so a
+hallucinated or sold-out variant is an error, not a broken checkout. (Lookup by global id was
+tried first; Shopify's sample store does not resolve `nodes(ids:)`, while `product(handle:)`
+works everywhere.)
+
+## 17. The catalog audit runs in the server
+
+Walking a catalog through `browse_products` costs the model one call and thousands of tokens per
+50 products. `audit_catalog` walks up to 5,000 products server-side and returns only counts,
+percentages, and a few examples per check. When no product has an online store URL the cause is
+store-wide, so it is reported once as a note and kept out of the top issues.
+
+## 18. More tools, each answering a question shoppers ask
+
+Recommendations, store info (shipping countries, payment methods, markets), and content pages
+(size guides, FAQs) were added in 0.5.0 because they are the most common questions an agent
+could not answer from products and policies alone. Each has a narrow schema and a description
+that says when to use it; the skill maps shopper questions to tools so the larger tool list does
+not make selection worse.
