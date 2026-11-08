@@ -18,6 +18,8 @@ Claude Desktop / any MCP client ──stdio──► mcp-store-tools ──HTTPS
                                               6 read-only tools          (public token)
 ```
 
+![mcp-store-tools answering catalog and policy questions from Shopify's sample store](docs/demo.svg)
+
 Ask your agent "what's your cheapest rain jacket in medium?", "can I return sale items?", or
 "audit our catalog for listing problems" and it answers from the live store, with links.
 
@@ -159,6 +161,9 @@ results a client actually sees, and a skill test checks `SKILL.md` names exactly
 `MCP_STORE_TOOLS_LIVE=1 uv run pytest tests/test_live.py` starts the server in demo mode over
 stdio and over HTTP and calls the tools against the real Storefront API. CI runs it weekly, and
 builds the Docker image on every push. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+The demo image is regenerated from real output with `uv run python scripts/render_demo.py`
+(it runs `examples/demo.py` against the sample store).
 
 Releases: bump `version` in `pyproject.toml`, add a `CHANGELOG.md` entry, and push a `v*` tag.
 
