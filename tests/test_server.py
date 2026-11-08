@@ -32,6 +32,7 @@ def payload(result: CallToolResult) -> Any:
 
 async def test_tools_are_listed_with_read_only_hints_and_bounds() -> None:
     async with client() as c:
+        assert c.server_info and c.server_info.version[0].isdigit()
         tools = {tool.name: tool for tool in (await c.list_tools()).tools}
 
     assert set(tools) == {

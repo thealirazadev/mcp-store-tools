@@ -42,6 +42,8 @@ HANDLE = r"^[a-z0-9][a-z0-9-]{0,254}$"
 def build_server(store: Storefront) -> MCPServer:
     server = MCPServer(
         name="mcp-store-tools",
+        version=version("mcp-store-tools"),
+        website_url="https://github.com/thealirazadev/mcp-store-tools",
         instructions=(
             "Read-only access to one Shopify store's published products and policies. "
             "Cite the product or policy URL when you answer from it." + UNTRUSTED
