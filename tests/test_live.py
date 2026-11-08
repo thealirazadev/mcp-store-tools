@@ -1,5 +1,6 @@
 """End-to-end against Shopify's public sample store over stdio. Opt in: MCP_STORE_TOOLS_LIVE=1."""
 
+import json
 import os
 import sys
 from typing import Any
@@ -75,6 +76,15 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
         assert priced["variants"]
         content = (await call("search_pages", query="liquid"))["result"]
         assert any(entry["kind"] == "article" for entry in content)
+
+        info_resource = (await session.read_resource("store://info")).contents[0]
+        assert hasattr(info_resource, "text") and json.loads(info_resource.text)["name"]
+        refund = (await session.read_resource("store://policies/refund")).contents[0]
+        assert hasattr(refund, "text") and "return" in refund.text.lower()
+        prompts = {p.name for p in (await session.list_prompts()).prompts}
+        assert prompts == {"audit_catalog", "compare_products", "policy_question"}
+        prompt = await session.get_prompt("policy_question", {"question": "Can I return it?"})
+        assert prompt.messages
 
 
 async def test_demo_store_over_streamable_http_with_a_bearer_token() -> None:
@@ -178,6 +188,10 @@ async def test_real_store_with_a_storefront_token() -> None:
                 == 2
             )
         await call("get_product", handle=first["handle"], country="CA")
+        collections = (await session.read_resource("store://collections")).contents[0]
+        assert hasattr(collections, "text") and isinstance(json.loads(collections.text), list)
+        listed = {str(r.uri) for r in (await session.list_resources()).resources}
+        assert listed == {"store://info", "store://collections"}
         in_stock = next((v for v in product["variants"] if v["available"]), None)
         if in_stock:
             item = {"handle": first["handle"], "variant_id": in_stock["id"]}
