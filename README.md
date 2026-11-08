@@ -16,14 +16,15 @@ token, which can only see what the public storefront already shows.
 
 ```
 Claude Desktop / any MCP client ──stdio──► mcp-store-tools ──HTTPS──► Shopify Storefront API
-                                             11 read-only tools          (public token)
+                                             13 read-only tools          (public token)
 ```
 
 ![mcp-store-tools answering catalog and policy questions from Shopify's sample store](docs/demo.svg)
 
-Ask your agent "what's your cheapest rain jacket in medium?", "what goes with it?", "do you ship
-to Germany?", "what size should I get?", "send me a link to buy two", or "audit our catalog for
-listing problems" and it answers from the live store, with links.
+Ask your agent "do you have this hoodie in black, size M?", "what's on sale?", "how much is it in
+pounds?", "compare these two", "what goes with it?", "do you ship to Germany?", "what size should
+I get?", "send me a link to buy two", or "audit our catalog for listing problems" and it answers
+from the live store, with links.
 
 What makes it different:
 
@@ -33,6 +34,11 @@ What makes it different:
 - **A whole-catalog audit in one tool call.** `audit_catalog` walks up to 5,000 products in the
   server and returns counts, percentages, examples, and the top three fixes, instead of the
   model paging through the catalog and burning tokens.
+- **Size and colour that are really in stock.** `search_products` with
+  `options: {"Size": "M", "Color": "Black"}` checks real variants (many stores ignore Shopify's
+  option filter) and returns the matching variants.
+- **Deals and local prices.** `find_deals` ranks sale items by discount; every product tool takes
+  a shopper `country`, so prices and availability follow that market (Shopify Markets).
 - **Search that does not miss.** Price and stock filters are enforced on every result, and when
   Shopify's search index comes back empty (common on new stores) it falls back to keyword
   matching for products and pages.
@@ -53,17 +59,19 @@ Then ask Claude Code: "What's the cheapest thing in the store, and what's the re
 
 | Tool | Input | Returns |
 | --- | --- | --- |
-| `search_products` | `query`, `limit` (1 to 20), optional `min_price`, `max_price`, `in_stock_only` | title, handle, price range, availability, image, URL |
-| `get_product` | `handle` | the product plus each variant's options (Size, Color), price, and availability |
+| `search_products` | `query`, `limit` (1 to 20), optional `min_price`, `max_price`, `in_stock_only`, `options`, `country` | title, handle, price, sale price, availability, image, URL, and `matching_variants` for options |
+| `get_product` | `handle`, `country` | the product plus each variant's id, options (Size, Color), price, sale price, and availability |
 | `list_collections` | none | the store's collections (categories) with handles |
 | `browse_products` | `collection`, `sort`, `limit` (1 to 50), `cursor` | one sorted page of products and `next_cursor` |
 | `list_policies` | none | which policies the store publishes, with URLs |
 | `get_policy` | `kind`: refund, shipping, privacy, terms, subscription | the policy as plain text |
 | `get_recommendations` | `handle`, `kind` (`similar` or `goes_with`), `limit` | Shopify's related or complementary products |
 | `get_store_info` | none | name, website, currency, ships-to countries, markets, languages, card brands, wallets |
-| `search_pages` | `query`, `limit` | content pages (size guide, FAQ, contact) as plain text with URLs |
+| `search_pages` | `query`, `limit` | content pages and blog articles (size guide, FAQ, care guides) as plain text with URLs |
 | `build_cart_link` | `items`: `handle`, `variant_id`, `quantity` | a verified cart permalink, line prices, and subtotal |
 | `audit_catalog` | `max_products` (up to 5,000), `examples_per_check` | listing-quality report: counts, percentages, examples, top issues |
+| `find_deals` | `collection`, `min_percent_off`, `limit`, `max_products`, `country` | sale items ranked by discount, with compare-at prices |
+| `compare_products` | `handles` (2 to 5), `country` | side-by-side rows (price, sale, stock, options) and the fields that differ |
 
 Every tool carries the MCP `readOnlyHint`, and failures come back as tool errors the model can
 relay ("the store is busy, try again shortly"), never stack traces or the token.
