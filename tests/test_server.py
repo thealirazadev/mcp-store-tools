@@ -253,7 +253,7 @@ def test_run_serves_the_chosen_transport(monkeypatch: pytest.MonkeyPatch) -> Non
     srv.run(FakeServer(), CONFIG, stdio)  # type: ignore[arg-type]
     srv.run(FakeServer(), CONFIG, http)  # type: ignore[arg-type]
 
-    assert served == [("stdio", "stdio"), ("http", "127.0.0.1", 9000, "s3cret")]
+    assert served == [("stdio", "stdio"), ("http", "127.0.0.1", 9000, "s3cret", 120)]
 
 
 async def test_recommendations_store_info_and_pages() -> None:
@@ -344,3 +344,20 @@ async def test_deals_compare_options_and_country_through_mcp() -> None:
     assert one.is_error
     assert sized["result"][0]["matching_variants"][0]["options"] == {"Size": "US 9"}
     assert bad_country.is_error
+
+
+async def test_resources_expose_store_info_collections_and_policies() -> None:
+    async with client() as c:
+        listed = {str(r.uri) for r in (await c.list_resources()).resources}
+        templates = {t.uri_template for t in (await c.list_resource_templates()).resource_templates}
+        info = await c.read_resource("store://info")
+        refund = await c.read_resource("store://policies/refund")
+        with pytest.raises(Exception, match="shipping"):
+            await c.read_resource("store://policies/shipping")
+
+    assert listed == {"store://info", "store://collections"}
+    assert templates == {"store://policies/{kind}"}
+    info_text = info.contents[0]
+    assert hasattr(info_text, "text") and json.loads(info_text.text)["name"] == "Northpeak"
+    refund_text = refund.contents[0]
+    assert hasattr(refund_text, "text") and "Returns within 30 days." in refund_text.text

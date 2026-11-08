@@ -5,6 +5,7 @@ Configure with SHOPIFY_STORE_DOMAIN and SHOPIFY_STOREFRONT_TOKEN (see README), t
 """
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -287,6 +288,42 @@ def build_server(store: Storefront) -> MCPServer:
         compared: dict[str, Any] = call(store.compare, list(dict.fromkeys(handles)), country)
         return compared
 
+    # Resources: the same read-only data as attachable context, for clients that let the user
+    # (or app) pin store facts into a conversation instead of waiting for a tool call.
+    @server.resource(
+        "store://info",
+        name="store-info",
+        title="Store information",
+        description="Name, website, currency, shipping countries, markets, payment methods.",
+        mime_type="application/json",
+    )
+    def store_info_resource() -> str:
+        return json.dumps(call(store.store_info), indent=2)
+
+    @server.resource(
+        "store://collections",
+        name="collections",
+        title="Collections",
+        description="The store's collections with handles and descriptions.",
+        mime_type="application/json",
+    )
+    def collections_resource() -> str:
+        return json.dumps(call(store.collections), indent=2)
+
+    @server.resource(
+        "store://policies/{kind}",
+        name="policy",
+        title="Store policy",
+        description="One policy as plain text: refund, shipping, privacy, terms, subscription.",
+        mime_type="text/plain",
+    )
+    def policy_resource(kind: str) -> str:
+        policies: dict[str, dict[str, str]] = call(store.policies)
+        if kind not in policies:
+            raise ToolError(f"The store does not publish a {kind} policy.")
+        policy = policies[kind]
+        return f"{policy['title']}\n{policy['url']}\n\n{policy['text']}"
+
     @server.prompt(
         name="audit_catalog",
         title="Audit the catalog",
@@ -412,7 +449,8 @@ def run(server: MCPServer, config: Config, args: argparse.Namespace) -> None:
         url = f"http://{args.host}:{args.port}/mcp"
         auth = "bearer token required" if token else "no authentication"
         print(f"mcp-store-tools: serving {config.shop} at {url} ({auth})", file=sys.stderr)
-        serve(server, args.host, args.port, token)
+        per_minute = int(os.environ.get("MCP_RATE_LIMIT", "120") or 0)
+        serve(server, args.host, args.port, token, per_minute)
     else:
         print(f"mcp-store-tools: serving {config.shop} over stdio", file=sys.stderr)
         server.run("stdio")
