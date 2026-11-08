@@ -177,11 +177,27 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="use Shopify's public sample store (mock.shop); no credentials needed",
     )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default="stdio",
+        help="stdio for local clients (default); http serves Streamable HTTP at /mcp",
+    )
+    parser.add_argument("--host", default="127.0.0.1", help="http bind address")
+    parser.add_argument(
+        "--port", type=int, default=int(os.environ.get("PORT", "8000")), help="http port"
+    )
     parser.add_argument("--version", action="version", version=version("mcp-store-tools"))
     args = parser.parse_args(argv)
     config = Config(DEMO_SHOP, token="") if args.demo else config_from_env()
-    print(f"mcp-store-tools: serving {config.shop} over stdio", file=sys.stderr)
-    build_server(Storefront(config)).run("stdio")
+    server = build_server(Storefront(config))
+    if args.transport == "http":
+        url = f"http://{args.host}:{args.port}/mcp"
+        print(f"mcp-store-tools: serving {config.shop} at {url}", file=sys.stderr)
+        server.run("streamable-http", host=args.host, port=args.port)
+    else:
+        print(f"mcp-store-tools: serving {config.shop} over stdio", file=sys.stderr)
+        server.run("stdio")
 
 
 if __name__ == "__main__":
