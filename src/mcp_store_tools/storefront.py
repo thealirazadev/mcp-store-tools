@@ -208,7 +208,13 @@ class Storefront:
             if response.status_code in (401, 403):
                 raise StorefrontError("The store rejected the access token.")
             if response.status_code >= 400:
-                raise StorefrontError(f"The store returned an error ({response.status_code}).")
+                # Shopify explains most 4xx responses ("Online Store channel is locked" for a
+                # store that has not opened yet); that text is safe to relay and actionable.
+                reason = _graphql_error(response)
+                detail = f": {reason}" if reason else "."
+                raise StorefrontError(
+                    f"The store returned an error ({response.status_code}){detail}"
+                )
             body: dict[str, Any] = response.json()
             if body.get("errors"):
                 first = body["errors"][0].get("message", "unknown error")
@@ -332,6 +338,16 @@ class Storefront:
                     "text": plain_text(policy.get("body"), limit=8000),
                 }
         return found
+
+
+def _graphql_error(response: httpx.Response) -> str:
+    try:
+        errors = response.json().get("errors")
+    except ValueError:
+        return ""
+    if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+        return str(errors[0].get("message", ""))[:200]
+    return ""
 
 
 def _money(value: dict[str, str]) -> str:

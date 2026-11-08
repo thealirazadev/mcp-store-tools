@@ -205,7 +205,12 @@ def test_network_errors_are_retried_then_reported() -> None:
 @pytest.mark.parametrize(
     ("response", "message"),
     [
-        (httpx.Response(404), r"error \(404\)"),
+        (httpx.Response(404), r"error \(404\)\.$"),
+        (
+            httpx.Response(400, json={"errors": [{"message": "Online Store channel is locked."}]}),
+            r"error \(400\): Online Store channel is locked",
+        ),
+        (httpx.Response(400, text="<html>bad</html>"), r"error \(400\)\.$"),
         (httpx.Response(200, json={"errors": [{"message": "bad field"}]}), "bad field"),
     ],
 )
