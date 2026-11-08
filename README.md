@@ -75,7 +75,7 @@ claude mcp add my-store --env SHOPIFY_STORE_DOMAIN=your-store.myshopify.com \
   --env SHOPIFY_STOREFRONT_TOKEN=your-storefront-token -- mcp-store-tools
 ```
 
-`SHOPIFY_API_VERSION` is optional (default `2025-10`).
+`SHOPIFY_API_VERSION` is optional (default `2026-10`).
 
 ### Cursor, VS Code, Windsurf, Codex, Gemini CLI
 

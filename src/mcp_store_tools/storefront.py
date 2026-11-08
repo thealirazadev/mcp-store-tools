@@ -127,7 +127,7 @@ def plain_text(value: str | None, limit: int = MAX_TEXT) -> str:
 class Config:
     shop: str
     token: str
-    api_version: str = "2025-10"
+    api_version: str = "2026-10"
 
     @property
     def endpoint(self) -> str:

@@ -15,7 +15,7 @@ def test_search_sends_the_token_and_returns_plain_products() -> None:
 
     [product] = store.search_products("trail shoe", limit=5)
 
-    assert calls[0]["url"] == "https://demo.myshopify.com/api/2025-10/graphql.json"
+    assert calls[0]["url"] == "https://demo.myshopify.com/api/2026-10/graphql.json"
     assert calls[0]["headers"]["x-shopify-storefront-access-token"] == "public-token"
     assert calls[0]["variables"] == {"query": "trail shoe", "first": 5}
     assert product["description"] == "Light shoe for rough trails."
