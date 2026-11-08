@@ -91,7 +91,8 @@ def build_server(store: Storefront) -> MCPServer:
     @server.tool(
         description="Browse products in a sorted order, optionally within one collection, one "
         "page at a time. Use it for 'cheapest', 'newest', 'best sellers', or to walk the whole "
-        "catalog: pass next_cursor back as cursor until it is null." + UNTRUSTED,
+        "catalog: pass next_cursor back as cursor, with the same collection and sort, until it is "
+        "null." + UNTRUSTED,
         annotations=READ_ONLY,
     )
     def browse_products(
