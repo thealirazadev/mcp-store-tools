@@ -9,6 +9,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from html.parser import HTMLParser
 from typing import Any
 
@@ -43,8 +44,11 @@ _CTX_VARS = "$country: CountryCode, $language: LanguageCode"
 _CTX = "@inContext(country: $country, language: $language)"
 
 SEARCH_QUERY = f"""
-query Search($query: String!, $first: Int!, {_CTX_VARS}) {_CTX} {{
-  products(first: $first, query: $query, sortKey: RELEVANCE) {{ nodes {{ {_PRODUCT_FIELDS} }} }}
+query Search($query: String!, $first: Int!, $filters: [ProductFilter!], {_CTX_VARS}) {_CTX} {{
+  search(query: $query, first: $first, types: [PRODUCT], productFilters: $filters,
+         sortKey: RELEVANCE) {{
+    nodes {{ ... on Product {{ {_PRODUCT_FIELDS} }} }}
+  }}
 }}
 """
 
@@ -226,9 +230,35 @@ class Storefront:
             delay = self._backoff * 2**attempt
         self._sleep(min(max(delay, 0.0), MAX_RETRY_WAIT))
 
-    def search_products(self, query: str, limit: int) -> list[dict[str, Any]]:
-        data = self.query(SEARCH_QUERY, {"query": query, "first": limit})
-        return [_product(node) for node in data["products"]["nodes"]]
+    def search_products(
+        self,
+        query: str,
+        limit: int,
+        min_price: Decimal | None = None,
+        max_price: Decimal | None = None,
+        in_stock_only: bool = False,
+    ) -> list[dict[str, Any]]:
+        filters: list[dict[str, Any]] = []
+        if min_price is not None or max_price is not None:
+            price = {"min": min_price, "max": max_price}
+            filters.append({"price": {k: float(v) for k, v in price.items() if v is not None}})
+        if in_stock_only:
+            filters.append({"available": True})
+        variables = {"query": query, "first": limit, "filters": filters or None}
+        nodes = self.query(SEARCH_QUERY, variables)["search"]["nodes"]
+
+        # Apply the filters again here: a store whose search ignores a filter must not make
+        # the model quote a product outside the range the shopper asked for.
+        def wanted(node: dict[str, Any]) -> bool:
+            low = Decimal(node["priceRange"]["minVariantPrice"]["amount"])
+            high = Decimal(node["priceRange"]["maxVariantPrice"]["amount"])
+            return (
+                (max_price is None or low <= max_price)
+                and (min_price is None or high >= min_price)
+                and (node["availableForSale"] or not in_stock_only)
+            )
+
+        return [_product(node) for node in nodes if node and wanted(node)]
 
     def get_product(self, handle: str) -> dict[str, Any] | None:
         node = self.query(PRODUCT_QUERY, {"handle": handle}).get("product")

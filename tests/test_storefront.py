@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -13,18 +14,36 @@ def test_search_sends_the_token_and_returns_plain_products() -> None:
     calls: list[dict[str, Any]] = []
     store = Storefront(CONFIG, transport=fakes.transport(calls=calls))
 
-    [product] = store.search_products("trail shoe", limit=5)
+    product, sold_out = store.search_products("trail shoe", limit=5)
 
     assert calls[0]["url"] == "https://demo.myshopify.com/api/2026-10/graphql.json"
     assert calls[0]["headers"]["x-shopify-storefront-access-token"] == "public-token"
     assert calls[0]["variables"] == {
         "query": "trail shoe",
         "first": 5,
+        "filters": None,
         "country": None,
         "language": None,
     }
+    assert sold_out["available"] is False
     assert product["description"] == "Light shoe for rough trails."
     assert product["price"] == "89.0 USD to 99.0 USD"
+
+
+def test_search_filters_are_sent_and_enforced_on_the_results() -> None:
+    calls: list[dict[str, Any]] = []
+    store = Storefront(CONFIG, transport=fakes.transport(calls=calls))
+
+    cheap = store.search_products("shoe", 5, max_price=Decimal("100"))
+    in_stock = store.search_products("shoe", 5, in_stock_only=True)
+    pricey = store.search_products("shoe", 5, min_price=Decimal("150"), max_price=Decimal("200"))
+
+    assert calls[0]["variables"]["filters"] == [{"price": {"max": 100.0}}]
+    assert calls[1]["variables"]["filters"] == [{"available": True}]
+    assert calls[2]["variables"]["filters"] == [{"price": {"min": 150.0, "max": 200.0}}]
+    assert [p["handle"] for p in cheap] == ["trail-runner"]
+    assert [p["handle"] for p in in_stock] == ["trail-runner"]
+    assert [p["handle"] for p in pricey] == ["summit-boot"]
 
 
 def test_product_includes_variants_and_missing_is_none() -> None:

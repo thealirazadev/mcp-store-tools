@@ -21,6 +21,17 @@ PRODUCT = {
     },
 }
 
+SOLD_OUT = {
+    **PRODUCT,
+    "handle": "summit-boot",
+    "title": "Summit Boot",
+    "availableForSale": False,
+    "priceRange": {
+        "minVariantPrice": {"amount": "180.0", "currencyCode": "USD"},
+        "maxVariantPrice": {"amount": "180.0", "currencyCode": "USD"},
+    },
+}
+
 VARIANTS = {
     "nodes": [
         {
@@ -68,7 +79,7 @@ def page(has_next: bool) -> dict[str, Any]:
 def respond(payload: dict[str, Any]) -> dict[str, Any]:
     query: str = payload["query"]
     if "query Search" in query:
-        return {"data": {"products": {"nodes": [PRODUCT]}}}
+        return {"data": {"search": {"nodes": [PRODUCT, SOLD_OUT]}}}
     if "query Product" in query:
         if payload["variables"]["handle"] != PRODUCT["handle"]:
             return {"data": {"product": None}}
