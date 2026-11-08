@@ -91,6 +91,9 @@ fields in `differs_in`. Link each product.
   ("89.0 USD to 99.0 USD") means variants differ: name the variant price when you can.
 - If `get_product` returns `more_variants: true`, only the first 100 variants were shown. If the
   user's variant is not among them, say so and link the product instead of saying it is missing.
+- A variant's `quantity_available` is its stock when the store shares it: say "only N left" when
+  it is 5 or fewer. `null` means unknown (not shared, or not tracked); never say "0 left" for an
+  available variant.
 - Stock is live at the moment of the call. Say "in stock now", not "will be in stock".
 - Link the product or policy `url` you answered from. Some stores return an empty `url`
   (product not on the online store); then give the product title instead.
