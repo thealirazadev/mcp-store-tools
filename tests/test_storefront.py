@@ -57,6 +57,7 @@ def test_product_includes_variants_and_missing_is_none() -> None:
         "title": "US 12",
         "available": False,
         "price": "99.0 USD",
+        "compare_at_price": "120.0 USD",
         "options": {"Size": "US 12"},
     }
     assert product["image"] == "https://cdn.example/trail-runner.jpg"
@@ -293,8 +294,90 @@ def test_cart_link_checks_variants_and_totals_lines() -> None:
 def test_all_products_walks_every_page_and_reports_truncation() -> None:
     store = Storefront(CONFIG, transport=fakes.transport())
 
-    everything, cut = store.all_products(100)
-    capped, capped_cut = store.all_products(1)
+    walked, walked_capped = store.all_products(100), store.all_products(1)
+    assert walked is not None and walked_capped is not None
+    (everything, cut), (capped, capped_cut) = walked, walked_capped
 
     assert len(everything) == 2 and cut is False
     assert len(capped) == 1 and capped_cut is True
+
+
+def test_sale_fields_show_compare_at_price_and_percent_off() -> None:
+    store = Storefront(CONFIG, transport=fakes.transport())
+
+    regular, boot = store.search_products("shoe", 5)
+
+    assert (regular["on_sale"], regular["compare_at_price"], regular["percent_off"]) == (
+        False,
+        "",
+        0,
+    )
+    assert (boot["on_sale"], boot["compare_at_price"], boot["percent_off"]) == (
+        True,
+        "240.0 USD",
+        25,
+    )
+
+
+def test_option_search_matches_real_variants_case_insensitively() -> None:
+    calls: list[dict[str, Any]] = []
+    store = Storefront(CONFIG, transport=fakes.transport(calls=calls))
+
+    any_stock = store.search_products("shoe", 5, options={"size": "us 12"})
+    in_stock = store.search_products("shoe", 5, options={"Size": "US 12"}, in_stock_only=True)
+    no_match = store.search_products("shoe", 5, options={"Size": "US 15"})
+
+    assert calls[0]["variables"]["filters"] == [
+        {"variantOption": {"name": "size", "value": "us 12"}}
+    ]
+    assert "selectedOptions" in calls[0]["query"]
+    assert [p["handle"] for p in any_stock] == ["trail-runner"]
+    assert [v["id"] for v in any_stock[0]["matching_variants"]] == ["1002"]
+    assert in_stock == [] and no_match == []
+
+
+def test_country_overrides_the_configured_market_per_call() -> None:
+    calls: list[dict[str, Any]] = []
+    config = Config("demo.myshopify.com", "t", country="US")
+    store = Storefront(config, transport=fakes.transport(calls=calls))
+
+    store.get_product("trail-runner", country="GB")
+    store.get_product("trail-runner")
+
+    assert [c["variables"]["country"] for c in calls] == ["GB", "US"]
+
+
+def test_deals_sort_by_discount_and_respect_the_minimum() -> None:
+    store = Storefront(CONFIG, transport=fakes.transport())
+
+    found = store.deals(None, 0, 10, 100)
+    strict = store.deals(None, 30, 10, 100)
+
+    assert found is not None and [p["handle"] for p in found["deals"]] == ["summit-boot"]
+    assert found["products_checked"] == 2 and found["on_sale_count"] == 1
+    assert strict is not None and strict["deals"] == []
+    assert store.deals("hats", 0, 10, 100) is None
+
+
+def test_compare_lists_options_and_differences() -> None:
+    store = Storefront(CONFIG, transport=fakes.transport())
+
+    result = store.compare(["trail-runner", "summit-boot"])
+
+    runner, boot = result["products"]
+    assert runner["options"] == {"Size": ["US 9", "US 12"]}
+    assert (runner["in_stock_variants"], runner["variant_count"]) == (1, 2)
+    assert boot["on_sale"] is True
+    assert {"price", "on_sale", "available", "options"} <= set(result["differs_in"])
+    assert "vendor" not in result["differs_in"]
+    with pytest.raises(StorefrontError, match="nope"):
+        store.compare(["trail-runner", "nope"])
+
+
+def test_page_search_falls_back_to_articles_too() -> None:
+    store = Storefront(CONFIG, transport=fakes.transport())
+
+    found = store.search_pages("how to wax leather boots", 3)
+
+    assert found[0]["kind"] == "article" and found[0]["handle"] == "waxing-your-boots"
+    assert found[0]["text"] == "Wax leather boots every season."

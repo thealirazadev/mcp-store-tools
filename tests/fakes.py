@@ -31,6 +31,8 @@ SOLD_OUT = {
         "minVariantPrice": {"amount": "180.0", "currencyCode": "USD"},
         "maxVariantPrice": {"amount": "180.0", "currencyCode": "USD"},
     },
+    # On sale: was 240, now 180 (25% off).
+    "compareAtPriceRange": {"maxVariantPrice": {"amount": "240.0", "currencyCode": "USD"}},
 }
 
 VARIANTS: dict[str, Any] = {
@@ -41,6 +43,7 @@ VARIANTS: dict[str, Any] = {
             "availableForSale": True,
             "price": {"amount": "89.0", "currencyCode": "USD"},
             "selectedOptions": [{"name": "Size", "value": "US 9"}],
+            "compareAtPrice": None,
         },
         {
             "id": "gid://shopify/ProductVariant/1002",
@@ -48,6 +51,7 @@ VARIANTS: dict[str, Any] = {
             "availableForSale": False,
             "price": {"amount": "99.0", "currencyCode": "USD"},
             "selectedOptions": [{"name": "Size", "value": "US 12"}],
+            "compareAtPrice": {"amount": "120.0", "currencyCode": "USD"},
         },
     ],
     "pageInfo": {"hasNextPage": False},
@@ -112,9 +116,18 @@ PAGES = [
 ]
 
 
+ARTICLE = {
+    "__typename": "Article",
+    "handle": "waxing-your-boots",
+    "title": "Waxing your boots",
+    "contentHtml": "<p>Wax <i>leather</i> boots every season.</p>",
+    "onlineStoreUrl": "https://demo.example/blogs/news/waxing-your-boots",
+}
+
+
 def page(has_next: bool) -> dict[str, Any]:
     info = {"hasNextPage": has_next, "endCursor": "cursor-1" if has_next else None}
-    return {"nodes": [PRODUCT], "pageInfo": info}
+    return {"nodes": [PRODUCT if has_next else SOLD_OUT], "pageInfo": info}
 
 
 def respond(payload: dict[str, Any]) -> dict[str, Any]:
@@ -123,11 +136,14 @@ def respond(payload: dict[str, Any]) -> dict[str, Any]:
         # "unindexed" mimics a store whose search index is empty for the query.
         if payload["variables"]["query"] == "unindexed":
             return {"data": {"search": {"nodes": []}}}
-        return {"data": {"search": {"nodes": [PRODUCT, SOLD_OUT]}}}
+        return {"data": {"search": {"nodes": [{**PRODUCT, "variants": VARIANTS}, SOLD_OUT]}}}
     if "query ProductsByKeyword" in query:
-        return {"data": {"products": {"nodes": [PRODUCT, SOLD_OUT]}}}
+        return {"data": {"products": {"nodes": [{**PRODUCT, "variants": VARIANTS}, SOLD_OUT]}}}
     if "query Product" in query:
-        if payload["variables"]["handle"] != PRODUCT["handle"]:
+        handle = payload["variables"]["handle"]
+        if handle == SOLD_OUT["handle"]:
+            return {"data": {"product": {**SOLD_OUT, "variants": {"nodes": []}}}}
+        if handle != PRODUCT["handle"]:
             return {"data": {"product": None}}
         return {"data": {"product": {**PRODUCT, "variants": VARIANTS}}}
     if "query Recommendations" in query:
@@ -146,7 +162,7 @@ def respond(payload: dict[str, Any]) -> dict[str, Any]:
         ]
         return {"data": {"search": {"nodes": hits}}}
     if "query PageList" in query:
-        return {"data": {"pages": {"nodes": PAGES}}}
+        return {"data": {"pages": {"nodes": PAGES}, "articles": {"nodes": [ARTICLE]}}}
     if "query CollectionBrowse" in query:
         if payload["variables"]["handle"] != "shoes":
             return {"data": {"collection": None}}

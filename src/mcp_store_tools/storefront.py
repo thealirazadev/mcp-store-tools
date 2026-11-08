@@ -37,6 +37,14 @@ _PRODUCT_FIELDS = """
   handle title description vendor productType tags onlineStoreUrl availableForSale
   featuredImage { url altText }
   priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+  compareAtPriceRange { maxVariantPrice { amount currencyCode } }
+"""
+
+# Added to search results only when the shopper asks for specific options (size, colour).
+_VARIANT_OPTION_FIELDS = """
+  variants(first: 100) {
+    nodes { id title availableForSale price { amount currencyCode } selectedOptions { name value } }
+  }
 """
 
 # Every query runs in the configured country and language: local currency, prices, and
@@ -44,22 +52,30 @@ _PRODUCT_FIELDS = """
 _CTX_VARS = "$country: CountryCode, $language: LanguageCode"
 _CTX = "@inContext(country: $country, language: $language)"
 
-SEARCH_QUERY = f"""
+
+def _search_queries(fields: str) -> tuple[str, str]:
+    search = f"""
 query Search($query: String!, $first: Int!, $filters: [ProductFilter!], {_CTX_VARS}) {_CTX} {{
   search(query: $query, first: $first, types: [PRODUCT], productFilters: $filters,
          sortKey: RELEVANCE) {{
-    nodes {{ ... on Product {{ {_PRODUCT_FIELDS} }} }}
+    nodes {{ ... on Product {{ {fields} }} }}
   }}
 }}
 """
-
-# Fallback when the storefront search index returns nothing (seen on a new development store,
-# where `search` returned 0 results while these products were published and listed).
-KEYWORD_QUERY = f"""
+    # Fallback when the storefront search index returns nothing (seen on a new development
+    # store, where `search` returned 0 results while these products were published and listed).
+    keyword = f"""
 query ProductsByKeyword($query: String!, $first: Int!, {_CTX_VARS}) {_CTX} {{
-  products(first: $first, query: $query, sortKey: RELEVANCE) {{ nodes {{ {_PRODUCT_FIELDS} }} }}
+  products(first: $first, query: $query, sortKey: RELEVANCE) {{ nodes {{ {fields} }} }}
 }}
 """
+    return search, keyword
+
+
+SEARCH_QUERY, KEYWORD_QUERY = _search_queries(_PRODUCT_FIELDS)
+OPTION_SEARCH_QUERY, OPTION_KEYWORD_QUERY = _search_queries(
+    _PRODUCT_FIELDS + _VARIANT_OPTION_FIELDS
+)
 
 PRODUCT_QUERY = f"""
 query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
@@ -68,6 +84,7 @@ query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
     variants(first: {MAX_VARIANTS}) {{
       nodes {{
         id title availableForSale price {{ amount currencyCode }} selectedOptions {{ name value }}
+        compareAtPrice {{ amount currencyCode }}
       }}
       pageInfo {{ hasNextPage }}
     }}
@@ -130,19 +147,23 @@ query StoreInfo({_CTX_VARS}) {_CTX} {{
 }}
 """
 
-_PAGE_FIELDS = "handle title body onlineStoreUrl"
+_PAGE_FIELDS = "__typename handle title body onlineStoreUrl"
+_ARTICLE_FIELDS = "__typename handle title contentHtml onlineStoreUrl"
 
 PAGE_SEARCH_QUERY = f"""
 query PageSearch($query: String!, $first: Int!, {_CTX_VARS}) {_CTX} {{
-  search(query: $query, first: $first, types: [PAGE]) {{
-    nodes {{ ... on Page {{ {_PAGE_FIELDS} }} }}
+  search(query: $query, first: $first, types: [PAGE, ARTICLE]) {{
+    nodes {{ ... on Page {{ {_PAGE_FIELDS} }} ... on Article {{ {_ARTICLE_FIELDS} }} }}
   }}
 }}
 """
 
-PAGE_LIST_QUERY = (
-    f"query PageList({_CTX_VARS}) {_CTX} {{ pages(first: 100) {{ nodes {{ {_PAGE_FIELDS} }} }} }}"
-)
+PAGE_LIST_QUERY = f"""
+query PageList({_CTX_VARS}) {_CTX} {{
+  pages(first: 100) {{ nodes {{ {_PAGE_FIELDS} }} }}
+  articles(first: 100, sortKey: PUBLISHED_AT, reverse: true) {{ nodes {{ {_ARTICLE_FIELDS} }} }}
+}}
+"""
 
 RECOMMENDATION_INTENTS = {"similar": "RELATED", "goes_with": "COMPLEMENTARY"}
 
@@ -231,10 +252,16 @@ class Storefront:
             },
         )
 
-    def query(self, document: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+    def query(
+        self, document: str, variables: dict[str, Any] | None = None, country: str | None = None
+    ) -> dict[str, Any]:
+        """Run a Storefront query; ``country`` overrides the configured market for this call."""
         variables = dict(variables or {})
         if "$country" in document:
-            variables |= {"country": self._config.country, "language": self._config.language}
+            variables |= {
+                "country": country or self._config.country,
+                "language": self._config.language,
+            }
         for attempt in range(self._max_retries + 1):
             try:
                 response = self._client.post(
@@ -291,18 +318,30 @@ class Storefront:
         min_price: Decimal | None = None,
         max_price: Decimal | None = None,
         in_stock_only: bool = False,
+        options: dict[str, str] | None = None,
+        country: str | None = None,
     ) -> list[dict[str, Any]]:
         filters: list[dict[str, Any]] = []
+        for name, value in (options or {}).items():
+            filters.append({"variantOption": {"name": name, "value": value}})
         if min_price is not None or max_price is not None:
             price = {"min": min_price, "max": max_price}
             filters.append({"price": {k: float(v) for k, v in price.items() if v is not None}})
         if in_stock_only:
             filters.append({"available": True})
+        search, keyword = (
+            (OPTION_SEARCH_QUERY, OPTION_KEYWORD_QUERY)
+            if options
+            else (
+                SEARCH_QUERY,
+                KEYWORD_QUERY,
+            )
+        )
         variables = {"query": query, "first": limit, "filters": filters or None}
-        nodes = [n for n in self.query(SEARCH_QUERY, variables)["search"]["nodes"] if n]
+        nodes = [n for n in self.query(search, variables, country)["search"]["nodes"] if n]
         if not nodes:
             fallback = {"query": query, "first": limit}
-            nodes = self.query(KEYWORD_QUERY, fallback)["products"]["nodes"]
+            nodes = self.query(keyword, fallback, country)["products"]["nodes"]
 
         # Apply the filters again here: a store whose search ignores a filter must not make
         # the model quote a product outside the range the shopper asked for.
@@ -315,23 +354,30 @@ class Storefront:
                 and (node["availableForSale"] or not in_stock_only)
             )
 
-        return [_product(node) for node in nodes if wanted(node)]
+        results = []
+        for node in nodes:
+            if not wanted(node):
+                continue
+            product = _product(node)
+            if options:
+                # Stores often ignore the option filter, so match real variants here.
+                matching = [
+                    _variant(v)
+                    for v in node.get("variants", {}).get("nodes", [])
+                    if _has_options(v, options) and (v["availableForSale"] or not in_stock_only)
+                ]
+                if not matching:
+                    continue
+                product["matching_variants"] = matching
+            results.append(product)
+        return results
 
-    def get_product(self, handle: str) -> dict[str, Any] | None:
-        node = self.query(PRODUCT_QUERY, {"handle": handle}).get("product")
+    def get_product(self, handle: str, country: str | None = None) -> dict[str, Any] | None:
+        node = self.query(PRODUCT_QUERY, {"handle": handle}, country).get("product")
         if node is None:
             return None
         product = _product(node)
-        product["variants"] = [
-            {
-                "id": _numeric_id(v["id"]),
-                "title": v["title"],
-                "available": v["availableForSale"],
-                "price": _money(v["price"]),
-                "options": {o["name"]: o["value"] for o in v.get("selectedOptions") or []},
-            }
-            for v in node["variants"]["nodes"]
-        ]
+        product["variants"] = [_variant(v) for v in node["variants"]["nodes"]]
         product["more_variants"] = bool(node["variants"].get("pageInfo", {}).get("hasNextPage"))
         return product
 
@@ -352,16 +398,23 @@ class Storefront:
         ]
 
     def browse(
-        self, collection: str | None, sort: str, limit: int, cursor: str | None
+        self,
+        collection: str | None,
+        sort: str,
+        limit: int,
+        cursor: str | None,
+        country: str | None = None,
     ) -> dict[str, Any] | None:
         """One page of products; None when the collection does not exist."""
         product_key, collection_key, reverse = SORTS[sort]
         variables: dict[str, Any] = {"first": limit, "after": cursor, "reverse": reverse}
         if collection is None:
-            page = self.query(BROWSE_QUERY, {**variables, "sortKey": product_key})["products"]
+            page = self.query(BROWSE_QUERY, {**variables, "sortKey": product_key}, country)[
+                "products"
+            ]
         else:
             variables |= {"handle": collection, "sortKey": collection_key}
-            found = self.query(COLLECTION_BROWSE_QUERY, variables).get("collection")
+            found = self.query(COLLECTION_BROWSE_QUERY, variables, country).get("collection")
             if found is None:
                 return None
             page = found["products"]
@@ -388,10 +441,12 @@ class Storefront:
                 }
         return found
 
-    def recommendations(self, handle: str, kind: str) -> list[dict[str, Any]] | None:
+    def recommendations(
+        self, handle: str, kind: str, country: str | None = None
+    ) -> list[dict[str, Any]] | None:
         """Shopify's own recommendations; None when the product does not exist."""
         variables = {"handle": handle, "intent": RECOMMENDATION_INTENTS[kind]}
-        data = self.query(RECOMMENDATIONS_QUERY, variables)
+        data = self.query(RECOMMENDATIONS_QUERY, variables, country)
         if data.get("product") is None:
             return None
         return [_product(node) for node in data.get("productRecommendations") or []]
@@ -420,30 +475,39 @@ class Storefront:
         }
 
     def search_pages(self, query: str, limit: int) -> list[dict[str, str]]:
-        """Content pages (size guides, FAQs, about); falls back to matching words when the
-        search index returns nothing, as with product search."""
+        """Content pages and blog articles (size guides, FAQs, care guides); falls back to
+        matching words when the search index returns nothing, as with product search."""
         found = self.query(PAGE_SEARCH_QUERY, {"query": query, "first": limit})["search"]
-        nodes = [n for n in found["nodes"] if n]
+        nodes = [n for n in found["nodes"] if n and n.get("handle")]
         if not nodes:
             words = [w for w in re.findall(r"\w+", query.lower()) if len(w) > 2] or [query.lower()]
-            every = self._cached("pages", lambda: self.query(PAGE_LIST_QUERY)["pages"]["nodes"])
+            every = self._cached("content", self._load_content)
 
-            def score(page: dict[str, Any]) -> int:
-                title, body = page["title"].lower(), plain_text(page.get("body"), 20000).lower()
+            def score(entry: dict[str, Any]) -> int:
+                title, body = entry["title"].lower(), _content_text(entry, 20000).lower()
                 return sum(3 * (w in title) + (w in body) for w in words)
 
-            nodes = sorted((p for p in every if score(p)), key=score, reverse=True)[:limit]
+            nodes = sorted((e for e in every if score(e)), key=score, reverse=True)[:limit]
         return [
             {
-                "handle": page["handle"],
-                "title": page["title"],
-                "url": page.get("onlineStoreUrl") or "",
-                "text": plain_text(page.get("body"), limit=3000),
+                "kind": "article" if entry.get("__typename") == "Article" else "page",
+                "handle": entry["handle"],
+                "title": entry["title"],
+                "url": entry.get("onlineStoreUrl") or "",
+                "text": _content_text(entry, 3000),
             }
-            for page in nodes
+            for entry in nodes
         ]
 
-    def cart_link(self, items: list[tuple[str, str, int]]) -> dict[str, Any]:
+    def _load_content(self) -> list[dict[str, Any]]:
+        data = self.query(PAGE_LIST_QUERY)
+        pages = data["pages"]["nodes"]
+        articles = (data.get("articles") or {}).get("nodes") or []
+        return [*pages, *articles]
+
+    def cart_link(
+        self, items: list[tuple[str, str, int]], country: str | None = None
+    ) -> dict[str, Any]:
         """A cart permalink for (product handle, variant id, quantity) items, after checking
         each variant belongs to that published product and is in stock, so the model cannot
         hand a shopper a link to a guessed or sold-out item. Nothing is written to the store;
@@ -452,7 +516,7 @@ class Storefront:
         lines, problems, sold_out = [], [], []
         for handle, variant_id, quantity in items:
             if handle not in products:
-                products[handle] = self.get_product(handle)
+                products[handle] = self.get_product(handle, country)
             product = products[handle]
             if product is None:
                 problems.append(f"no published product '{handle}'")
@@ -501,22 +565,112 @@ class Storefront:
             "are applied at checkout.",
         }
 
-    def all_products(self, max_products: int) -> tuple[list[dict[str, Any]], bool]:
-        """Walk the catalog in title order; returns (products, truncated)."""
+    def all_products(
+        self, max_products: int, collection: str | None = None, country: str | None = None
+    ) -> tuple[list[dict[str, Any]], bool] | None:
+        """Walk the catalog (or one collection) in title order; returns (products, truncated),
+        or None when the collection does not exist."""
         products: list[dict[str, Any]] = []
         cursor = None
         while len(products) < max_products:
-            page = self.browse(None, "title", min(100, max_products - len(products)), cursor)
-            assert page is not None
+            size = min(100, max_products - len(products))
+            page = self.browse(collection, "title", size, cursor, country)
+            if page is None:
+                return None
             products += page["products"]
             cursor = page["next_cursor"]
             if cursor is None:
                 return products, False
         return products, True
 
+    def deals(
+        self,
+        collection: str | None,
+        min_percent_off: int,
+        limit: int,
+        max_products: int,
+        country: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Products priced below their compare-at price, biggest discount first."""
+        walked = self.all_products(max_products, collection, country)
+        if walked is None:
+            return None
+        products, truncated = walked
+        on_sale = [p for p in products if p["on_sale"] and p["percent_off"] >= min_percent_off]
+        on_sale.sort(key=lambda p: p["percent_off"], reverse=True)
+        return {
+            "deals": on_sale[:limit],
+            "on_sale_count": len(on_sale),
+            "products_checked": len(products),
+            "truncated": truncated,
+        }
+
+    def compare(self, handles: list[str], country: str | None = None) -> dict[str, Any]:
+        """Side-by-side facts for several products, with the fields that differ."""
+        found = {h: self.get_product(h, country) for h in handles}
+        missing = [h for h, p in found.items() if p is None]
+        if missing:
+            raise StorefrontError(f"No published product has the handle: {', '.join(missing)}.")
+        rows = []
+        for product in found.values():
+            assert product is not None
+            options: dict[str, list[str]] = {}
+            for variant in product["variants"]:
+                for name, value in variant["options"].items():
+                    if value not in options.setdefault(name, []):
+                        options[name].append(value)
+            rows.append(
+                {
+                    key: product[key]
+                    for key in (
+                        "handle",
+                        "title",
+                        "price",
+                        "compare_at_price",
+                        "on_sale",
+                        "percent_off",
+                        "available",
+                        "vendor",
+                        "type",
+                        "url",
+                        "image",
+                    )
+                }
+                | {
+                    "in_stock_variants": sum(v["available"] for v in product["variants"]),
+                    "variant_count": len(product["variants"]),
+                    "options": options,
+                    "description": product["description"][:500],
+                }
+            )
+        compared = ("price", "on_sale", "available", "vendor", "type", "options")
+        differs = [key for key in compared if len({repr(row[key]) for row in rows}) > 1]
+        return {"products": rows, "differs_in": differs}
+
+
+def _has_options(variant: dict[str, Any], wanted: dict[str, str]) -> bool:
+    have = {o["name"].lower(): o["value"].lower() for o in variant.get("selectedOptions") or []}
+    return all(have.get(name.lower()) == value.lower() for name, value in wanted.items())
+
+
+def _variant(v: dict[str, Any]) -> dict[str, Any]:
+    compare = v.get("compareAtPrice")
+    return {
+        "id": _numeric_id(v["id"]),
+        "title": v["title"],
+        "available": v["availableForSale"],
+        "price": _money(v["price"]),
+        "compare_at_price": _money(compare) if compare else "",
+        "options": {o["name"]: o["value"] for o in v.get("selectedOptions") or []},
+    }
+
 
 def _numeric_id(gid: str) -> str:
     return gid.rsplit("/", 1)[-1]
+
+
+def _content_text(entry: dict[str, Any], limit: int) -> str:
+    return plain_text(entry.get("body") or entry.get("contentHtml"), limit)
 
 
 def _graphql_error(response: httpx.Response) -> str:
@@ -547,4 +701,18 @@ def _product(node: dict[str, Any]) -> dict[str, Any]:
         "available": node["availableForSale"],
         "url": node.get("onlineStoreUrl") or "",
         "image": (node.get("featuredImage") or {}).get("url") or "",
+        **_sale(node),
+    }
+
+
+def _sale(node: dict[str, Any]) -> dict[str, Any]:
+    """Compare-at price and the deepest discount ("up to N% off") across variants."""
+    compare = ((node.get("compareAtPriceRange") or {}).get("maxVariantPrice")) or {}
+    was = Decimal(compare.get("amount") or 0)
+    now = Decimal(node["priceRange"]["minVariantPrice"]["amount"])
+    on_sale = was > now > 0
+    return {
+        "compare_at_price": _money(compare) if on_sale else "",
+        "on_sale": on_sale,
+        "percent_off": int((was - now) * 100 / was) if on_sale else 0,
     }
