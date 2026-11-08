@@ -46,6 +46,38 @@ query Product($handle: String!) {{
 }}
 """
 
+_PAGE = f"nodes {{ {_PRODUCT_FIELDS} }} pageInfo {{ hasNextPage endCursor }}"
+_PAGE_ARGS = "first: $first, after: $after, sortKey: $sortKey, reverse: $reverse"
+
+BROWSE_QUERY = f"""
+query Browse($first: Int!, $after: String, $sortKey: ProductSortKeys!, $reverse: Boolean!) {{
+  products({_PAGE_ARGS}) {{ {_PAGE} }}
+}}
+"""
+
+COLLECTION_BROWSE_QUERY = f"""
+query CollectionBrowse(
+  $handle: String!, $first: Int!, $after: String,
+  $sortKey: ProductCollectionSortKeys!, $reverse: Boolean!
+) {{
+  collection(handle: $handle) {{ products({_PAGE_ARGS}) {{ {_PAGE} }} }}
+}}
+"""
+
+COLLECTIONS_QUERY = (
+    "query Collections { collections(first: 100) "
+    "{ nodes { handle title description onlineStoreUrl } } }"
+)
+
+# sort name -> (ProductSortKeys, ProductCollectionSortKeys, reverse)
+SORTS = {
+    "best_selling": ("BEST_SELLING", "BEST_SELLING", False),
+    "price_low_to_high": ("PRICE", "PRICE", False),
+    "price_high_to_low": ("PRICE", "PRICE", True),
+    "newest": ("CREATED_AT", "CREATED", True),
+    "title": ("TITLE", "TITLE", False),
+}
+
 POLICIES_QUERY = (
     "query Policies { shop { "
     + " ".join(f"{field} {{ title body url }}" for field in POLICY_FIELDS.values())
@@ -173,6 +205,38 @@ class Storefront:
             for v in node["variants"]["nodes"]
         ]
         return product
+
+    def collections(self) -> list[dict[str, str]]:
+        nodes = self.query(COLLECTIONS_QUERY)["collections"]["nodes"]
+        return [
+            {
+                "handle": c["handle"],
+                "title": c["title"],
+                "description": plain_text(c.get("description"), limit=500),
+                "url": c.get("onlineStoreUrl") or "",
+            }
+            for c in nodes
+        ]
+
+    def browse(
+        self, collection: str | None, sort: str, limit: int, cursor: str | None
+    ) -> dict[str, Any] | None:
+        """One page of products; None when the collection does not exist."""
+        product_key, collection_key, reverse = SORTS[sort]
+        variables: dict[str, Any] = {"first": limit, "after": cursor, "reverse": reverse}
+        if collection is None:
+            page = self.query(BROWSE_QUERY, {**variables, "sortKey": product_key})["products"]
+        else:
+            variables |= {"handle": collection, "sortKey": collection_key}
+            found = self.query(COLLECTION_BROWSE_QUERY, variables).get("collection")
+            if found is None:
+                return None
+            page = found["products"]
+        info = page["pageInfo"]
+        return {
+            "products": [_product(node) for node in page["nodes"]],
+            "next_cursor": info["endCursor"] if info["hasNextPage"] else None,
+        }
 
     def policies(self) -> dict[str, dict[str, str]]:
         shop = self.query(POLICIES_QUERY)["shop"]

@@ -49,6 +49,21 @@ POLICIES = {
 }
 
 
+COLLECTIONS = [
+    {
+        "handle": "shoes",
+        "title": "Shoes",
+        "description": "Road and <i>trail</i> shoes.",
+        "onlineStoreUrl": "https://demo.example/collections/shoes",
+    }
+]
+
+
+def page(has_next: bool) -> dict[str, Any]:
+    info = {"hasNextPage": has_next, "endCursor": "cursor-1" if has_next else None}
+    return {"nodes": [PRODUCT], "pageInfo": info}
+
+
 def respond(payload: dict[str, Any]) -> dict[str, Any]:
     query: str = payload["query"]
     if "query Search" in query:
@@ -57,6 +72,14 @@ def respond(payload: dict[str, Any]) -> dict[str, Any]:
         if payload["variables"]["handle"] != PRODUCT["handle"]:
             return {"data": {"product": None}}
         return {"data": {"product": {**PRODUCT, "variants": VARIANTS}}}
+    if "query CollectionBrowse" in query:
+        if payload["variables"]["handle"] != "shoes":
+            return {"data": {"collection": None}}
+        return {"data": {"collection": {"products": page(False)}}}
+    if "query Browse" in query:
+        return {"data": {"products": page(payload["variables"]["after"] is None)}}
+    if "query Collections" in query:
+        return {"data": {"collections": {"nodes": COLLECTIONS}}}
     if "query Policies" in query:
         return {"data": {"shop": POLICIES}}
     return {"errors": [{"message": "unknown operation"}]}
