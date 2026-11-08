@@ -79,8 +79,8 @@ def build_server(store: Storefront) -> MCPServer:
 
     @server.tool(
         description="Get one product by its handle (from search_products), including every "
-        "variant's price and availability (up to 100 variants; more_variants is true when the "
-        "product has more)." + UNTRUSTED,
+        "variant's options (such as Size and Color), price, and availability (up to 100 "
+        "variants; more_variants is true when the product has more)." + UNTRUSTED,
         annotations=READ_ONLY,
     )
     def get_product(
