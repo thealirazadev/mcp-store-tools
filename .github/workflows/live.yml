@@ -1,0 +1,24 @@
+name: live
+
+# End-to-end over stdio against Shopify's public sample store (mock.shop). Kept out of the push
+# CI so an outage of a third-party demo store never blocks a merge.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  demo-store:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.28"
+
+      - run: uv python install 3.12
+      - run: uv sync --locked
+      - run: uv run pytest tests/test_live.py
+        env:
+          MCP_STORE_TOOLS_LIVE: "1"
