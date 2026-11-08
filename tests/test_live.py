@@ -44,3 +44,44 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
         assert "refund" in kinds
         policy = await call("get_policy", kind="refund")
         assert "<" not in policy["text"]
+
+
+async def test_demo_store_over_streamable_http() -> None:
+    import asyncio
+    import socket
+
+    from mcp.client.streamable_http import streamable_http_client
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "mcp_store_tools.server",
+        "--demo",
+        "--transport",
+        "http",
+        "--port",
+        str(port),
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    try:
+        for _ in range(50):
+            try:
+                _, writer = await asyncio.open_connection("127.0.0.1", port)
+                writer.close()
+                break
+            except OSError:
+                await asyncio.sleep(0.2)
+        url = f"http://127.0.0.1:{port}/mcp"
+        async with (
+            streamable_http_client(url) as (read, write),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            result = await session.call_tool("search_products", {"query": "shirt"})
+            assert not result.is_error and result.structured_content
+    finally:
+        server.terminate()
+        await server.wait()
