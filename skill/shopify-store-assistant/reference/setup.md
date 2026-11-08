@@ -15,11 +15,11 @@ uvx --from git+https://github.com/thealirazadev/mcp-store-tools mcp-store-tools 
 
 ## Get a Storefront token for your store
 
-1. Shopify admin: **Settings > Apps and sales channels > Develop apps > Create an app**.
-2. **Configure Storefront API scopes**: enable `unauthenticated_read_product_listings` and
-   `unauthenticated_read_content`. Save, then **Install app**.
-3. Copy the **Storefront API access token**. It can only read what your public storefront
-   already shows: no orders, no customers, no writes.
+1. Install Shopify's free **Headless** sales channel from the App Store
+   (apps.shopify.com/headless) on your store.
+2. In the store admin: **Headless > Create storefront**, then **Storefront API**.
+3. Copy the **public access token**. It can only read what your storefront shows: no orders,
+   no customers, no writes. (A trial store's storefront stays locked until a plan is chosen.)
 
 In the configs below, replace `your-store.myshopify.com` and `your-storefront-token`.
 
