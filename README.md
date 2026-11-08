@@ -206,7 +206,9 @@ stdio and over HTTP and calls the tools against the real Storefront API. CI runs
 builds the Docker image on every push. With `SHOPIFY_STORE_DOMAIN` and
 `SHOPIFY_STOREFRONT_TOKEN` also set (a development store with test data), it additionally checks
 a real store and the wrong-token error; CI reads them from the `SHOPIFY_STORE_DOMAIN` variable and
-`SHOPIFY_STOREFRONT_TOKEN` secret. See [CONTRIBUTING.md](CONTRIBUTING.md).
+`SHOPIFY_STOREFRONT_TOKEN` secret. [evals/](evals/README.md) runs real shopper and merchant questions through a model (Claude
+Code, headless) and checks the tools it picks: 10/10 on the latest run. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 The demo image is regenerated from real output with `uv run python scripts/render_demo.py`
 (it runs `examples/demo.py` against the sample store).
