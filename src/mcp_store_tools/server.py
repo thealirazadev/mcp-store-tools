@@ -254,6 +254,16 @@ def main(argv: list[str] | None = None) -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     config = Config(DEMO_SHOP, token="") if args.demo else config_from_env()
     server = build_server(Storefront(config))
+    try:
+        run(server, config, args)
+    except KeyboardInterrupt:
+        # The stdio transport reads stdin in a worker thread that a normal exit would wait on,
+        # forcing a second Ctrl+C; nothing is left to clean up, so leave immediately.
+        print("mcp-store-tools: stopped", file=sys.stderr, flush=True)
+        os._exit(130)
+
+
+def run(server: MCPServer, config: Config, args: argparse.Namespace) -> None:
     if args.transport == "http":
         token = os.environ.get("MCP_AUTH_TOKEN", "").strip() or None
         url = f"http://{args.host}:{args.port}/mcp"

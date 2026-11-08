@@ -188,3 +188,62 @@ async def test_prompts_are_listed_and_name_only_real_tools() -> None:
         named |= {w for w in re.findall(r"\b[a-z]+_[a-z]+\b", body.text) if w in tools}
         assert named and named <= tools
     assert "Summit Boot" in texts[1]
+
+
+def test_ctrl_c_stops_the_server_once_without_a_traceback() -> None:
+    import signal
+    import subprocess
+    import sys
+    import time
+
+    server = subprocess.Popen(
+        [sys.executable, "-m", "mcp_store_tools.server", "--demo"],
+        stdin=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    time.sleep(1.5)
+    server.send_signal(signal.SIGINT)
+    _, stderr = server.communicate(timeout=5)
+
+    assert server.returncode == 130
+    assert "Traceback" not in stderr
+
+
+def test_main_reports_ctrl_c_and_exits_130(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import mcp_store_tools.server as srv
+
+    def interrupted(*args: object) -> None:
+        raise KeyboardInterrupt
+
+    exits: list[int] = []
+    monkeypatch.setattr(srv, "run", interrupted)
+    monkeypatch.setattr("os._exit", exits.append)
+    srv.main(["--demo"])
+
+    assert exits == [130]
+    assert "stopped" in capsys.readouterr().err
+
+
+def test_run_serves_the_chosen_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    import argparse
+
+    import mcp_store_tools.server as srv
+
+    served: list[tuple[Any, ...]] = []
+
+    class FakeServer:
+        def run(self, transport: str) -> None:
+            served.append(("stdio", transport))
+
+    monkeypatch.setattr(srv, "serve", lambda *args: served.append(("http", *args[1:])))
+    monkeypatch.setenv("MCP_AUTH_TOKEN", " s3cret ")
+    stdio = argparse.Namespace(transport="stdio")
+    http = argparse.Namespace(transport="http", host="127.0.0.1", port=9000)
+
+    srv.run(FakeServer(), CONFIG, stdio)  # type: ignore[arg-type]
+    srv.run(FakeServer(), CONFIG, http)  # type: ignore[arg-type]
+
+    assert served == [("stdio", "stdio"), ("http", "127.0.0.1", 9000, "s3cret")]
