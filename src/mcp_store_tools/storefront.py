@@ -19,6 +19,8 @@ MAX_TEXT = 2000
 DEMO_SHOP = "mock.shop"
 RETRY_STATUS = frozenset({429, 430, 500, 502, 503, 504})
 MAX_RETRY_WAIT = 10.0
+# Enough for every size/colour grid; beyond this the answer is flagged, not silently cut.
+MAX_VARIANTS = 100
 
 POLICY_FIELDS = {
     "refund": "refundPolicy",
@@ -48,7 +50,10 @@ PRODUCT_QUERY = f"""
 query Product($handle: String!, {_CTX_VARS}) {_CTX} {{
   product(handle: $handle) {{
     {_PRODUCT_FIELDS}
-    variants(first: 50) {{ nodes {{ title availableForSale price {{ amount currencyCode }} }} }}
+    variants(first: {MAX_VARIANTS}) {{
+      nodes {{ title availableForSale price {{ amount currencyCode }} }}
+      pageInfo {{ hasNextPage }}
+    }}
   }}
 }}
 """
@@ -225,6 +230,7 @@ class Storefront:
             }
             for v in node["variants"]["nodes"]
         ]
+        product["more_variants"] = bool(node["variants"].get("pageInfo", {}).get("hasNextPage"))
         return product
 
     def collections(self) -> list[dict[str, str]]:

@@ -34,7 +34,18 @@ def test_product_includes_variants_and_missing_is_none() -> None:
 
     assert product is not None
     assert product["variants"][1] == {"title": "US 12", "available": False, "price": "99.0 USD"}
+    assert product["more_variants"] is False
     assert store.get_product("nope") is None
+
+
+def test_products_with_more_variants_than_shown_are_flagged() -> None:
+    def respond(payload: dict[str, Any]) -> dict[str, Any]:
+        variants = {**fakes.VARIANTS, "pageInfo": {"hasNextPage": True}}
+        return {"data": {"product": {**fakes.PRODUCT, "variants": variants}}}
+
+    store = Storefront(CONFIG, transport=fakes.transport(respond))
+    product = store.get_product("trail-runner")
+    assert product is not None and product["more_variants"] is True
 
 
 def test_policies_skip_unset_ones_and_drop_scripts() -> None:

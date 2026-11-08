@@ -33,7 +33,8 @@ VARIANTS = {
             "availableForSale": False,
             "price": {"amount": "99.0", "currencyCode": "USD"},
         },
-    ]
+    ],
+    "pageInfo": {"hasNextPage": False},
 }
 
 POLICIES = {
