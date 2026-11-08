@@ -42,6 +42,13 @@ assert set(get_args(PolicyKind)) == set(POLICY_FIELDS)
 Sort = Literal["best_selling", "price_low_to_high", "price_high_to_low", "newest", "title"]
 assert set(get_args(Sort)) == set(SORTS)
 HANDLE = r"^[a-z0-9][a-z0-9-]{0,254}$"
+Country = Annotated[
+    str | None,
+    Field(
+        pattern=r"^[A-Z]{2}$",
+        description="ISO country code (GB, DE) for that market's prices and availability",
+    ),
+]
 RecommendationKind = Literal["similar", "goes_with"]
 assert set(get_args(RecommendationKind)) == set(RECOMMENDATION_INTENTS)
 READ_ONLY_CLOSED = ToolAnnotations(read_only_hint=True, destructive_hint=False)
@@ -73,8 +80,9 @@ def build_server(store: Storefront) -> MCPServer:
 
     @server.tool(
         description="Search published products by keywords, optionally within a price range "
-        "(in the store's currency) or in stock only; returns title, price, availability, image, "
-        "and URL for each match." + UNTRUSTED,
+        "(in the store's currency), in stock only, or with specific options such as a size and "
+        "colour (matching_variants lists the variants that fit); returns title, price, sale "
+        "price, availability, image, and URL for each match." + UNTRUSTED,
         annotations=READ_ONLY,
     )
     def search_products(
@@ -83,11 +91,26 @@ def build_server(store: Storefront) -> MCPServer:
         min_price: Annotated[Decimal | None, Field(ge=0)] = None,
         max_price: Annotated[Decimal | None, Field(ge=0)] = None,
         in_stock_only: bool = False,
+        options: Annotated[
+            dict[str, Annotated[str, Field(min_length=1, max_length=100)]] | None,
+            Field(
+                max_length=3,
+                description='Variant options to match, such as {"Size": "M", "Color": "Black"}',
+            ),
+        ] = None,
+        country: Country = None,
     ) -> list[dict[str, Any]]:
         if min_price is not None and max_price is not None and min_price > max_price:
             raise ToolError("min_price must not be greater than max_price.")
         results: list[dict[str, Any]] = call(
-            store.search_products, query, limit, min_price, max_price, in_stock_only
+            store.search_products,
+            query,
+            limit,
+            min_price,
+            max_price,
+            in_stock_only,
+            options or None,
+            country,
         )
         return results
 
@@ -99,8 +122,9 @@ def build_server(store: Storefront) -> MCPServer:
     )
     def get_product(
         handle: Annotated[str, Field(pattern=HANDLE)],
+        country: Country = None,
     ) -> dict[str, Any]:
-        product: dict[str, Any] | None = call(store.get_product, handle)
+        product: dict[str, Any] | None = call(store.get_product, handle, country)
         if product is None:
             raise ToolError(f"No published product has the handle '{handle}'.")
         return product
@@ -128,8 +152,9 @@ def build_server(store: Storefront) -> MCPServer:
         sort: Sort = "best_selling",
         limit: Annotated[int, Field(ge=1, le=50)] = 20,
         cursor: Annotated[str | None, Field(max_length=512)] = None,
+        country: Country = None,
     ) -> dict[str, Any]:
-        page: dict[str, Any] | None = call(store.browse, collection, sort, limit, cursor)
+        page: dict[str, Any] | None = call(store.browse, collection, sort, limit, cursor, country)
         if page is None:
             raise ToolError(f"No collection has the handle '{collection}'.")
         return page
@@ -162,8 +187,9 @@ def build_server(store: Storefront) -> MCPServer:
         handle: Annotated[str, Field(pattern=HANDLE)],
         kind: RecommendationKind = "similar",
         limit: Annotated[int, Field(ge=1, le=10)] = 5,
+        country: Country = None,
     ) -> list[dict[str, Any]]:
-        found: list[dict[str, Any]] | None = call(store.recommendations, handle, kind)
+        found: list[dict[str, Any]] | None = call(store.recommendations, handle, kind, country)
         if found is None:
             raise ToolError(f"No published product has the handle '{handle}'.")
         return found[:limit]
@@ -179,8 +205,8 @@ def build_server(store: Storefront) -> MCPServer:
         return info
 
     @server.tool(
-        description="Search the store's content pages, such as size guides, FAQs, about, and "
-        "contact pages; returns each page's text and URL." + UNTRUSTED,
+        description="Search the store's content pages and blog articles, such as size guides, "
+        "FAQs, care guides, about, and contact pages; returns each one's text and URL." + UNTRUSTED,
         annotations=READ_ONLY,
     )
     def search_pages(
@@ -199,6 +225,7 @@ def build_server(store: Storefront) -> MCPServer:
     )
     def build_cart_link(
         items: Annotated[list[CartItem], Field(min_length=1, max_length=20)],
+        country: Country = None,
     ) -> dict[str, Any]:
         merged: dict[tuple[str, str], int] = {}
         for item in items:
@@ -207,7 +234,7 @@ def build_server(store: Storefront) -> MCPServer:
         if any(quantity > 99 for quantity in merged.values()):
             raise ToolError("At most 99 of one variant per cart link.")
         lines = [(handle, variant, quantity) for (handle, variant), quantity in merged.items()]
-        link: dict[str, Any] = call(store.cart_link, lines)
+        link: dict[str, Any] = call(store.cart_link, lines, country)
         return link
 
     @server.tool(
@@ -223,6 +250,42 @@ def build_server(store: Storefront) -> MCPServer:
     ) -> dict[str, Any]:
         products, truncated = call(store.all_products, max_products)
         return audit(products, truncated, examples_per_check)
+
+    @server.tool(
+        description="Products on sale (priced below their compare-at price), biggest discount "
+        "first, optionally within one collection or above a minimum percent off. Use it for "
+        "'what's on sale?' and 'any deals on jackets?'." + UNTRUSTED,
+        annotations=READ_ONLY,
+    )
+    def find_deals(
+        collection: Annotated[
+            str | None, Field(pattern=HANDLE, description="Collection handle; omit for all")
+        ] = None,
+        min_percent_off: Annotated[int, Field(ge=0, le=95)] = 0,
+        limit: Annotated[int, Field(ge=1, le=25)] = 10,
+        max_products: Annotated[int, Field(ge=1, le=5000)] = 1000,
+        country: Country = None,
+    ) -> dict[str, Any]:
+        found: dict[str, Any] | None = call(
+            store.deals, collection, min_percent_off, limit, max_products, country
+        )
+        if found is None:
+            raise ToolError(f"No collection has the handle '{collection}'.")
+        return found
+
+    @server.tool(
+        description="Compare 2 to 5 products side by side: price, sale price, stock, vendor, "
+        "type, and every option value (sizes, colours), plus which of these differ." + UNTRUSTED,
+        annotations=READ_ONLY,
+    )
+    def compare_products(
+        handles: Annotated[
+            list[Annotated[str, Field(pattern=HANDLE)]], Field(min_length=2, max_length=5)
+        ],
+        country: Country = None,
+    ) -> dict[str, Any]:
+        compared: dict[str, Any] = call(store.compare, list(dict.fromkeys(handles)), country)
+        return compared
 
     @server.prompt(
         name="audit_catalog",
@@ -240,17 +303,19 @@ def build_server(store: Storefront) -> MCPServer:
         )
 
     @server.prompt(
+        name="compare_products",
         title="Compare products",
         description="Compare products side by side from live prices and variants.",
     )
-    def compare_products(
+    def compare_products_prompt(
         products: Annotated[str, Field(description="Product names or handles, comma-separated")],
     ) -> str:
         return (
             f"Compare these products from this store: {products}.\n"
-            "Find each with search_products, then call get_product for its variants. Answer with "
-            "a table: name, price, in-stock options, and the key differences taken from the "
-            "descriptions, linking each product. Use only prices and stock the tools returned."
+            "Find each product's handle with search_products, then call compare_products with "
+            "the handles. Answer with a table: name, price (and sale price), in-stock options, "
+            "and the fields in differs_in, plus key differences from the descriptions, linking "
+            "each product. Use only prices and stock the tools returned."
         )
 
     @server.prompt(

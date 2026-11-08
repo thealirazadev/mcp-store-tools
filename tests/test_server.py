@@ -48,6 +48,8 @@ async def test_tools_are_listed_with_read_only_hints_and_bounds() -> None:
         "search_pages",
         "build_cart_link",
         "audit_catalog",
+        "find_deals",
+        "compare_products",
     }
     assert all(t.annotations and t.annotations.read_only_hint for t in tools.values())
     limit = tools["search_products"].input_schema["properties"]["limit"]
@@ -313,8 +315,32 @@ async def test_audit_catalog_tool_reports_the_whole_catalog() -> None:
         report = payload(await c.call_tool("audit_catalog", {"examples_per_check": 1}))
 
     assert report["products_checked"] == 2 and report["truncated"] is False
-    # The fake catalog serves the same in-stock product on both pages.
-    assert report["checks"]["sold_out"]["count"] == 0
-    assert report["checks"]["duplicate_title"]["count"] == 2
-    assert len(report["checks"]["duplicate_title"]["examples"]) == 1
-    assert set(report["top_issues"]) == {"duplicate_title", "short_description"}
+    # The fake catalog serves the trail runner, then the sold-out summit boot.
+    assert report["checks"]["sold_out"]["count"] == 1
+    assert report["checks"]["sold_out"]["examples"][0]["handle"] == "summit-boot"
+    assert report["checks"]["duplicate_title"]["count"] == 0
+    assert report["checks"]["short_description"]["count"] == 2
+    assert report["top_issues"] == ["short_description", "sold_out"]
+
+
+async def test_deals_compare_options_and_country_through_mcp() -> None:
+    async with client() as c:
+        deals = payload(await c.call_tool("find_deals", {"min_percent_off": 10}))
+        missing = await c.call_tool("find_deals", {"collection": "hats"})
+        compared = payload(
+            await c.call_tool("compare_products", {"handles": ["trail-runner", "summit-boot"]})
+        )
+        one = await c.call_tool("compare_products", {"handles": ["trail-runner"]})
+        sized = payload(
+            await c.call_tool("search_products", {"query": "shoe", "options": {"Size": "US 9"}})
+        )
+        bad_country = await c.call_tool(
+            "get_product", {"handle": "trail-runner", "country": "Britain"}
+        )
+
+    assert [p["handle"] for p in deals["deals"]] == ["summit-boot"]
+    assert missing.is_error and "hats" in text(missing)
+    assert len(compared["products"]) == 2 and "price" in compared["differs_in"]
+    assert one.is_error
+    assert sized["result"][0]["matching_variants"][0]["options"] == {"Size": "US 9"}
+    assert bad_country.is_error
