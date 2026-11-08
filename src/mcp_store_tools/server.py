@@ -139,6 +139,54 @@ def build_server(store: Storefront) -> MCPServer:
             raise ToolError(f"The store does not publish a {kind} policy.")
         return {"kind": kind, **policies[kind]}
 
+    @server.prompt(
+        title="Audit the catalog",
+        description="Walk every product and report listing problems for the merchant.",
+    )
+    def audit_catalog() -> str:
+        return (
+            "Audit this store's catalog for listing problems.\n"
+            "1. Call list_collections. Then page through browse_products(sort='title', limit=50), "
+            "passing next_cursor back as cursor with the same sort until it is null; stop after "
+            "20 pages and ask before continuing.\n"
+            "2. Flag products with: an empty or very short description (under 100 characters), "
+            "no product type, no vendor, no tags, an empty url (not on the online store), "
+            "available false (sold out), a price range whose top is over 3x its bottom, or a "
+            "title in ALL CAPS, over 70 characters, or duplicated.\n"
+            "3. Report a summary table (count and percentage per check), then the products per "
+            "check with links (at most 25 each), then the three fixes that help the most "
+            "products. Note that the audit cannot see drafts, inventory counts, SEO fields, or "
+            "sales."
+        )
+
+    @server.prompt(
+        title="Compare products",
+        description="Compare products side by side from live prices and variants.",
+    )
+    def compare_products(
+        products: Annotated[str, Field(description="Product names or handles, comma-separated")],
+    ) -> str:
+        return (
+            f"Compare these products from this store: {products}.\n"
+            "Find each with search_products, then call get_product for its variants. Answer with "
+            "a table: name, price, in-stock options, and the key differences taken from the "
+            "descriptions, linking each product. Use only prices and stock the tools returned."
+        )
+
+    @server.prompt(
+        title="Answer a policy question",
+        description="Answer a shopper's question from the store's own policy text.",
+    )
+    def policy_question(
+        question: Annotated[str, Field(description="The shopper's question")],
+    ) -> str:
+        return (
+            f"A shopper asks: {question}\n"
+            "Call list_policies, then get_policy for the relevant kind. Quote the sentence that "
+            "answers the question and link the policy. State what the policy says; do not "
+            "promise an outcome. If the store publishes no such policy, say so."
+        )
+
     return server
 
 
