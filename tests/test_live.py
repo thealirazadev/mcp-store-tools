@@ -29,6 +29,12 @@ async def test_demo_store_answers_every_tool_over_stdio() -> None:
         assert found and all(p["handle"] and p["price"] for p in found)
         product = await call("get_product", handle=found[0]["handle"])
         assert product["variants"]
+        handle = (await call("list_collections"))["result"][0]["handle"]
+        cheap = await call("browse_products", collection=handle, sort="price_low_to_high", limit=2)
+        assert cheap["products"]
+        if cheap["next_cursor"]:
+            more = await call("browse_products", collection=handle, cursor=cheap["next_cursor"])
+            assert more["products"]
         kinds = {p["kind"] for p in (await call("list_policies"))["result"]}
         assert "refund" in kinds
         policy = await call("get_policy", kind="refund")

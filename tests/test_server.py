@@ -34,7 +34,14 @@ async def test_tools_are_listed_with_read_only_hints_and_bounds() -> None:
     async with client() as c:
         tools = {tool.name: tool for tool in (await c.list_tools()).tools}
 
-    assert set(tools) == {"search_products", "get_product", "list_policies", "get_policy"}
+    assert set(tools) == {
+        "search_products",
+        "get_product",
+        "list_collections",
+        "browse_products",
+        "list_policies",
+        "get_policy",
+    }
     assert all(t.annotations and t.annotations.read_only_hint for t in tools.values())
     limit = tools["search_products"].input_schema["properties"]["limit"]
     assert (limit["minimum"], limit["maximum"]) == (1, 20)
@@ -115,3 +122,25 @@ def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_demo_store_uses_the_public_sample_endpoint() -> None:
     assert Config("mock.shop", token="").endpoint == "https://mock.shop/api"
+
+
+async def test_collections_then_browse_pages() -> None:
+    async with client() as c:
+        collections = payload(await c.call_tool("list_collections", {}))["result"]
+        first = payload(await c.call_tool("browse_products", {"sort": "price_low_to_high"}))
+        second = payload(await c.call_tool("browse_products", {"cursor": first["next_cursor"]}))
+        missing = await c.call_tool("browse_products", {"collection": "hats"})
+        bad_sort = await c.call_tool("browse_products", {"sort": "random"})
+
+    assert collections == [
+        {
+            "handle": "shoes",
+            "title": "Shoes",
+            "description": "Road and trail shoes.",
+            "url": "https://demo.example/collections/shoes",
+        }
+    ]
+    assert first["next_cursor"] == "cursor-1" and second["next_cursor"] is None
+    assert first["products"][0]["handle"] == "trail-runner"
+    assert missing.is_error and "hats" in text(missing)
+    assert bad_sort.is_error
