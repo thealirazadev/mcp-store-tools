@@ -161,6 +161,7 @@ async def test_real_store_with_a_storefront_token() -> None:
         assert first["handle"] in {p["handle"] for p in found}
         product = await call("get_product", handle=first["handle"])
         assert product["variants"] and "options" in product["variants"][0]
+        assert "quantity_available" in product["variants"][0]
         await call("list_collections")
         await call("list_policies")
         await call("get_store_info")
