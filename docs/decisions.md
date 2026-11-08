@@ -20,9 +20,15 @@ The server cannot stop a model from reading it, but it does three things:
 
 ## 3. Small, typed tool surface
 
-Four tools: `search_products`, `get_product`, `list_policies`, `get_policy`. Each has a narrow
-input schema with bounds (`limit` is 1 to 20, handles match `[a-z0-9-]+`). Fewer, well-described
-tools are chosen more reliably by models than many overlapping ones.
+Six tools: `search_products`, `get_product`, `list_collections`, `browse_products`,
+`list_policies`, `get_policy`. Each has a narrow input schema with bounds (`limit` is 1 to 20 for
+search and 1 to 50 for browsing, handles match `[a-z0-9-]+`, `sort` is an enum). Fewer,
+well-described tools are chosen more reliably by models than many overlapping ones.
+
+`browse_products` was added in 0.2.0 because keyword search cannot answer "cheapest", "newest",
+or "everything in this category", and cannot walk the whole catalog for an audit. It exposes
+Shopify's cursor as an opaque string. A cursor is only valid for the sort and collection that
+produced it, so the tool description says so; otherwise models reuse it with a new sort.
 
 ## 4. Errors are tool results, not crashes
 
@@ -35,3 +41,16 @@ or the access token.
 The GraphQL client takes an `httpx` transport, so tests run against `httpx.MockTransport` with
 recorded-shape responses. A separate test drives the real MCP server over an in-memory session
 to check the tool list and schemas a client actually sees.
+
+## 6. A demo store for trying it without credentials
+
+`--demo` points the client at mock.shop, Shopify's public sample store, which serves real
+Storefront API responses without a token. People can try the server and the skill before
+creating a Shopify app, and the weekly `live` workflow uses it as an end-to-end check. It runs on
+a schedule, not on every push, so an outage of a third-party demo store never blocks a merge.
+
+## 7. The skill ships with the server
+
+The `skill/shopify-store-assistant` folder teaches an agent when to call which tool, how to
+answer (cite URLs, never invent prices), and how to run a catalog audit. It lives in this repo,
+and a test checks it names exactly the tools the server serves, so the two cannot drift apart.
