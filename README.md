@@ -1,5 +1,7 @@
 # mcp-store-tools
 
+<!-- mcp-name: io.github.thealirazadev/mcp-store-tools -->
+
 [![ci](https://github.com/thealirazadev/mcp-store-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/thealirazadev/mcp-store-tools/actions/workflows/ci.yml)
 [![live](https://github.com/thealirazadev/mcp-store-tools/actions/workflows/live.yml/badge.svg)](https://github.com/thealirazadev/mcp-store-tools/actions/workflows/live.yml)
 ![python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)

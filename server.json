@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.thealirazadev/mcp-store-tools",
+  "title": "Shopify Store Tools",
+  "description": "Read-only Shopify catalog, collections, and policies for AI agents. Try it with --demo.",
+  "repository": {
+    "url": "https://github.com/thealirazadev/mcp-store-tools",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/thealirazadev/mcp-store-tools",
+  "version": "0.3.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mcp-store-tools",
+      "version": "0.3.0",
+      "runtimeHint": "uvx",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "SHOPIFY_STORE_DOMAIN",
+          "description": "Store domain, such as your-store.myshopify.com",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "SHOPIFY_STOREFRONT_TOKEN",
+          "description": "Storefront API access token (read-only public data)",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "SHOPIFY_COUNTRY",
+          "description": "Optional ISO country code for local currency and prices, such as GB",
+          "format": "string"
+        },
+        {
+          "name": "SHOPIFY_LANGUAGE",
+          "description": "Optional language code for translated content, such as FR",
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
