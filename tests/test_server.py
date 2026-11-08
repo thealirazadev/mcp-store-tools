@@ -85,3 +85,23 @@ def test_config_requires_both_variables(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("SHOPIFY_STORE_DOMAIN", "demo.myshopify.com")
     monkeypatch.setenv("SHOPIFY_API_VERSION", "2026-01")
     assert config_from_env().endpoint == "https://demo.myshopify.com/api/2026-01/graphql.json"
+
+
+@pytest.mark.parametrize(
+    "typed", ["https://demo.myshopify.com/", "demo.myshopify.com/admin", " Demo.myshopify.com "]
+)
+def test_config_accepts_a_pasted_store_url(monkeypatch: pytest.MonkeyPatch, typed: str) -> None:
+    monkeypatch.setenv("SHOPIFY_STORE_DOMAIN", typed)
+    monkeypatch.setenv("SHOPIFY_STOREFRONT_TOKEN", "t")
+    monkeypatch.delenv("SHOPIFY_API_VERSION", raising=False)
+    assert config_from_env().shop == "demo.myshopify.com"
+
+
+@pytest.mark.parametrize("typed", ["not a domain", "demo..com", "localhost"])
+def test_config_rejects_values_that_are_not_store_domains(
+    monkeypatch: pytest.MonkeyPatch, typed: str
+) -> None:
+    monkeypatch.setenv("SHOPIFY_STORE_DOMAIN", typed)
+    monkeypatch.setenv("SHOPIFY_STOREFRONT_TOKEN", "t")
+    with pytest.raises(SystemExit, match="SHOPIFY_STORE_DOMAIN"):
+        config_from_env()
