@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp_types import TextContent
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("MCP_STORE_TOOLS_LIVE") != "1", reason="set MCP_STORE_TOOLS_LIVE=1 to run"
@@ -97,3 +98,52 @@ async def test_demo_store_over_streamable_http_with_a_bearer_token() -> None:
     finally:
         server.terminate()
         await server.wait()
+
+
+real_store = pytest.mark.skipif(
+    not os.environ.get("SHOPIFY_STORE_DOMAIN") or not os.environ.get("SHOPIFY_STOREFRONT_TOKEN"),
+    reason="set SHOPIFY_STORE_DOMAIN and SHOPIFY_STOREFRONT_TOKEN for a real store",
+)
+
+
+def _real_store_params(token: str) -> StdioServerParameters:
+    env = {**os.environ, "SHOPIFY_STOREFRONT_TOKEN": token}
+    return StdioServerParameters(
+        command=sys.executable, args=["-m", "mcp_store_tools.server"], env=env
+    )
+
+
+@real_store
+async def test_real_store_with_a_storefront_token() -> None:
+    params = _real_store_params(os.environ["SHOPIFY_STOREFRONT_TOKEN"])
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+
+        async def call(name: str, **arguments: Any) -> Any:
+            result = await session.call_tool(name, arguments)
+            assert not result.is_error, result.content
+            return result.structured_content
+
+        page = await call("browse_products", sort="title", limit=5)
+        assert page["products"], "the test store needs published products"
+        first = page["products"][0]
+        # Search must find a product by a word of its own title, even on a fresh store whose
+        # search index is empty (the keyword fallback).
+        word = max(first["title"].split(), key=len)
+        found = (await call("search_products", query=word, limit=20))["result"]
+        assert first["handle"] in {p["handle"] for p in found}
+        product = await call("get_product", handle=first["handle"])
+        assert product["variants"] and "options" in product["variants"][0]
+        await call("list_collections")
+        await call("list_policies")
+
+
+@real_store
+async def test_real_store_rejects_a_wrong_token() -> None:
+    params = _real_store_params("0" * 32)
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool("search_products", {"query": "shirt"})
+    assert result.is_error
+    first = result.content[0]
+    assert isinstance(first, TextContent) and "rejected the access token" in first.text
