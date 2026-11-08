@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.3 - 2026-11-09
+
+- `search_products` falls back to the keyword product query when Storefront search returns
+  nothing, which happens on stores whose search index is empty. Found against a real
+  development store.
+- Opt-in live tests against a real store (search, variants, collections, policies) and the
+  wrong-token error; the weekly live workflow runs them when the store is configured.
+
 ## 0.4.2 - 2026-11-09
 
 - Shopify's reason for a 4xx response is passed to the model (for example "Online Store channel
