@@ -7,6 +7,7 @@
 ![coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![M8ven Score](https://m8ven.ai/badge/mcp/thealirazadev-mcp-store-tools-tim8i5?v=f08866aa1dcb90a4b896ff6b53ef6c60)](https://m8ven.ai/mcp/thealirazadev-mcp-store-tools-tim8i5?s=readme)
 
 An [MCP](https://modelcontextprotocol.io) server that turns any AI assistant into a shopping
 assistant and catalog auditor for a Shopify store: it answers from the live catalog, pages, and
