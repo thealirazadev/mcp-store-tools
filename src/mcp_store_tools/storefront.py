@@ -319,7 +319,14 @@ class Storefront:
                 raise StorefrontError(
                     f"The store returned an error ({response.status_code}){detail}"
                 )
-            body: dict[str, Any] = response.json()
+            try:
+                body: dict[str, Any] = response.json()
+            except ValueError as exc:
+                # A 200 with an HTML page (a maintenance or password page, a proxy) is not an
+                # answer; report it like any other store failure instead of a decode traceback.
+                raise StorefrontError("The store returned a response that is not JSON.") from exc
+            if not isinstance(body, dict):
+                raise StorefrontError("The store returned a response that is not JSON.")
             if body.get("errors"):
                 first = body["errors"][0].get("message", "unknown error")
                 raise StorefrontError(f"The store could not answer the query: {first}")
