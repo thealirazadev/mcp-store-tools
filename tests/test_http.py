@@ -66,3 +66,19 @@ def test_build_app_layers_health_rate_limit_and_auth() -> None:
     assert isinstance(app, Health) and isinstance(app.app, RateLimit)
     assert isinstance(app.app.app, BearerAuth)
     assert isinstance(build_app(server, "127.0.0.1", None, 0), Health)
+
+
+async def test_rate_limit_forgets_every_client_when_the_minute_ends() -> None:
+    now = [0.0]
+    limited = RateLimit(ok, per_minute=1, clock=lambda: now[0])
+    clients = [httpx.ASGITransport(app=limited, client=(f"10.0.1.{i}", 1)) for i in range(3)]
+    for transport in clients:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as caller:
+            assert (await caller.post("/mcp")).status_code == 200
+    assert len(limited.counts) == 3
+
+    now[0] = 61.0
+    async with httpx.AsyncClient(transport=clients[0], base_url="http://test") as caller:
+        assert (await caller.post("/mcp")).status_code == 200
+
+    assert limited.counts == {"10.0.1.0": 1}

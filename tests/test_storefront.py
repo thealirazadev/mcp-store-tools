@@ -216,6 +216,9 @@ def test_network_errors_are_retried_then_reported() -> None:
         ),
         (httpx.Response(400, text="<html>bad</html>"), r"error \(400\)\.$"),
         (httpx.Response(200, json={"errors": [{"message": "bad field"}]}), "bad field"),
+        # A password or maintenance page served with 200 instead of an API answer.
+        (httpx.Response(200, text="<html>Opening soon</html>"), "not JSON"),
+        (httpx.Response(200, json=["not", "an", "object"]), "not JSON"),
     ],
 )
 def test_client_and_graphql_errors_are_reported(response: httpx.Response, message: str) -> None:

@@ -260,6 +260,27 @@ def test_run_serves_the_chosen_transport(monkeypatch: pytest.MonkeyPatch) -> Non
     assert served == [("stdio", "stdio"), ("http", "127.0.0.1", 9000, "s3cret", 120)]
 
 
+@pytest.mark.parametrize(("value", "expected"), [("", 120), (" 30 ", 30), ("0", 0)])
+def test_rate_limit_reads_whole_numbers_and_keeps_the_default_when_empty(
+    monkeypatch: pytest.MonkeyPatch, value: str, expected: int
+) -> None:
+    from mcp_store_tools.server import rate_limit_from_env
+
+    monkeypatch.setenv("MCP_RATE_LIMIT", value)
+    assert rate_limit_from_env() == expected
+
+
+@pytest.mark.parametrize("value", ["-1", "ten", "1.5"])
+def test_rate_limit_rejects_values_that_are_not_whole_numbers(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    from mcp_store_tools.server import rate_limit_from_env
+
+    monkeypatch.setenv("MCP_RATE_LIMIT", value)
+    with pytest.raises(SystemExit, match="MCP_RATE_LIMIT must be a whole number"):
+        rate_limit_from_env()
+
+
 async def test_recommendations_store_info_and_pages() -> None:
     async with client() as c:
         similar = payload(await c.call_tool("get_recommendations", {"handle": "trail-runner"}))
@@ -341,6 +362,10 @@ async def test_deals_compare_options_and_country_through_mcp() -> None:
         bad_country = await c.call_tool(
             "get_product", {"handle": "trail-runner", "country": "Britain"}
         )
+        long_name = await c.call_tool(
+            "search_products", {"query": "shoe", "options": {"S" * 101: "US 9"}}
+        )
+        empty_name = await c.call_tool("search_products", {"query": "shoe", "options": {"": "M"}})
 
     assert [p["handle"] for p in deals["deals"]] == ["summit-boot"]
     assert missing.is_error and "hats" in text(missing)
@@ -348,6 +373,7 @@ async def test_deals_compare_options_and_country_through_mcp() -> None:
     assert one.is_error
     assert sized["result"][0]["matching_variants"][0]["options"] == {"Size": "US 9"}
     assert bad_country.is_error
+    assert long_name.is_error and empty_name.is_error
 
 
 async def test_resources_expose_store_info_collections_and_policies() -> None:

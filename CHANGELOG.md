@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- A 200 response that is not JSON (a password or maintenance page) is reported as a store
+  error instead of a decode traceback.
+- `search_products` bounds option names (1 to 100 characters) as it already bounded values.
+- HTTP mode: the rate limiter drops finished windows once per minute instead of rescanning
+  every client on each request once more than 10,000 had called.
+- HTTP mode: an empty `MCP_RATE_LIMIT` keeps the default of 120 instead of turning the limit
+  off, and a value that is not a whole number stops the server with a message.
+
 ## 0.7.1 - 2026-11-09
 
 - Option search results carry stock counts (`quantity_available`) like `get_product`.
