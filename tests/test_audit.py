@@ -72,3 +72,22 @@ def test_no_urls_anywhere_is_reported_once_as_a_store_wide_note() -> None:
     assert report["checks"]["not_on_online_store"]["store_wide"] is True
     assert "not_on_online_store" not in report["top_issues"]
     assert "Online Store" in report["notes"][0]
+
+
+def test_checks_leave_borderline_listings_alone() -> None:
+    borderline = [
+        product(handle="acronym", title="USB"),  # under 4 letters is not ALL CAPS
+        product(handle="exact", title="Exact", price="10.0 USD to 30.0 USD"),  # 3x is fine
+        product(handle="free", title="Free", price="0.0 USD to 99.0 USD"),  # no lowest price
+        product(handle="seventy", title="x" * 70),
+    ]
+    report = audit(borderline, False, 5)
+
+    assert report["top_issues"] == []
+    assert all(check["count"] == 0 for check in report["checks"].values())
+
+
+def test_duplicate_titles_ignore_case_and_surrounding_space() -> None:
+    report = audit([product(handle="a"), product(handle="b", title="  trail runner ")], False, 5)
+
+    assert [e["handle"] for e in report["checks"]["duplicate_title"]["examples"]] == ["a", "b"]
