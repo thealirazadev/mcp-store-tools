@@ -50,6 +50,8 @@ Country = Annotated[
         description="ISO country code (GB, DE) for that market's prices and availability",
     ),
 ]
+# Option names and values (Size, M) go to Shopify as filters, so both are bounded.
+OptionText = Annotated[str, Field(min_length=1, max_length=100)]
 RecommendationKind = Literal["similar", "goes_with"]
 assert set(get_args(RecommendationKind)) == set(RECOMMENDATION_INTENTS)
 READ_ONLY_CLOSED = ToolAnnotations(read_only_hint=True, destructive_hint=False)
@@ -93,7 +95,7 @@ def build_server(store: Storefront) -> MCPServer:
         max_price: Annotated[Decimal | None, Field(ge=0)] = None,
         in_stock_only: bool = False,
         options: Annotated[
-            dict[str, Annotated[str, Field(min_length=1, max_length=100)]] | None,
+            dict[OptionText, OptionText] | None,
             Field(
                 max_length=3,
                 description='Variant options to match, such as {"Size": "M", "Color": "Black"}',
@@ -408,6 +410,19 @@ def optional_code(variable: str, pattern: str, example: str) -> str | None:
     return value or None
 
 
+def rate_limit_from_env() -> int:
+    """Requests per minute per client; 0 turns the limit off, unset or empty keeps 120."""
+    value = os.environ.get("MCP_RATE_LIMIT", "").strip()
+    if not value:
+        return 120
+    if not re.fullmatch(r"[0-9]+", value):
+        raise SystemExit(
+            "mcp-store-tools: MCP_RATE_LIMIT must be a whole number of requests per minute "
+            "(0 turns the limit off)"
+        )
+    return int(value)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="mcp-store-tools",
@@ -449,7 +464,7 @@ def run(server: MCPServer, config: Config, args: argparse.Namespace) -> None:
         url = f"http://{args.host}:{args.port}/mcp"
         auth = "bearer token required" if token else "no authentication"
         print(f"mcp-store-tools: serving {config.shop} at {url} ({auth})", file=sys.stderr)
-        per_minute = int(os.environ.get("MCP_RATE_LIMIT", "120") or 0)
+        per_minute = rate_limit_from_env()
         serve(server, args.host, args.port, token, per_minute)
     else:
         print(f"mcp-store-tools: serving {config.shop} over stdio", file=sys.stderr)

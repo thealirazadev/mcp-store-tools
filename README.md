@@ -156,9 +156,10 @@ claude mcp add --transport http my-store http://localhost:8000/mcp
 ```
 
 `GET /healthz` answers without authentication (the Docker image uses it as its health check).
-Each client address may make `MCP_RATE_LIMIT` requests per minute (default 120, `0` turns it
-off); beyond that the server answers 429 with `Retry-After`, protecting the store's Storefront
-API quota.
+Each client address may make `MCP_RATE_LIMIT` requests per minute (default 120, also when the
+variable is empty; `0` turns it off; anything but a whole number stops the server with a
+message); beyond that the server answers 429 with `Retry-After`, protecting the store's
+Storefront API quota.
 
 Set `MCP_AUTH_TOKEN` to require `Authorization: Bearer <token>` on every request (add
 `--header "Authorization: Bearer <token>"` to `claude mcp add`). Read [SECURITY.md](SECURITY.md)

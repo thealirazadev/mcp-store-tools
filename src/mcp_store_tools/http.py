@@ -47,22 +47,24 @@ class RateLimit:
         self.app = app
         self.per_minute = per_minute
         self.clock = clock
-        self.windows: dict[str, tuple[int, int]] = {}
+        self.minute = int(clock() // 60)
+        self.counts: dict[str, int] = {}
 
     async def __call__(self, scope: Scope, receive: Any, send: Any) -> None:
         if scope["type"] == "http":
             client = (scope.get("client") or ("unknown", 0))[0]
             minute = int(self.clock() // 60)
-            start, count = self.windows.get(client, (minute, 0))
-            if start != minute:
-                start, count = minute, 0
+            if minute != self.minute:
+                # Every stored count belongs to the finished minute: drop them all at once, so
+                # memory follows the callers of one minute and no request scans every client.
+                self.counts = {}
+                self.minute = minute
+            count = self.counts.get(client, 0)
             if count >= self.per_minute:
                 wait = str(60 - int(self.clock() % 60)).encode()
                 await _reply(send, 429, {"error": "rate limited"}, [(b"retry-after", wait)])
                 return
-            self.windows[client] = (start, count + 1)
-            if len(self.windows) > 10_000:  # forget old windows so memory stays bounded
-                self.windows = {k: v for k, v in self.windows.items() if v[0] == minute}
+            self.counts[client] = count + 1
         await self.app(scope, receive, send)
 
 

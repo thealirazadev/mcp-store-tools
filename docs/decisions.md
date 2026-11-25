@@ -174,5 +174,8 @@ tool call.
 
 A shared HTTP server spends one store's Storefront API quota for every caller. A per-client,
 one-minute window (default 120 requests, `MCP_RATE_LIMIT`) answers 429 with `Retry-After` before
-a request reaches Shopify. `/healthz` sits outside authentication and rate limiting so load
-balancers and Docker can probe it.
+a request reaches Shopify. The counts are dropped together when the minute ends, so memory
+follows one minute's callers and no request scans every client. An empty `MCP_RATE_LIMIT`
+keeps the default rather than switching the limit off; only an explicit `0` does that.
+`/healthz` sits outside authentication and rate limiting so load balancers and Docker can
+probe it.
